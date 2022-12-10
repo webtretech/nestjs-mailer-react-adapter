@@ -1,6 +1,6 @@
 <p align="center">
   <a href="http://nestjs.com/" target="blank">
-    <img src="https://nestjs.com/img/logo_text.svg" width="320" alt="Nest Logo" />
+    <img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" />
   </a>
 </p>
 
@@ -20,9 +20,9 @@
 
 - ⛔ No more template not found or sending blank emails.
 
-- ⛔ No more issues of missing context/variables from template.
+- ⛔ No more issues of missing context / variables from template.
 
-- 💌 Built on [`react-email`](https://github.com/zenorocha/react-email) to give you access to their well-tested mail components.
+- 💌 Built on [`react-email`](https://github.com/zenorocha/react-email) to give you access to their collection well-tested mail components.
 
 - 🦾 Write your templates in [TypeScript](https://www.typescriptlang.org/)
 
@@ -35,7 +35,7 @@ npm install --save-dev @types/react
 
 ### Getting started
 
-1. Add this to your `tsconfig.json`
+1. Add this to your `tsconfig.json` if it's not already
 
 ```json
 "jsx": "react-jsx"
@@ -66,7 +66,7 @@ import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
 export class AppModule {}
 ```
 
-3. Service provider
+3. Service Provider
 
 ```javascript
 import { Injectable } from '@nestjs/common';
@@ -84,7 +84,7 @@ export class ExampleService {
         subject: 'Testing Nest Mailermodule with template ✔',
         template: 'welcome', // The compiled extension is appended automatically.
         context: {
-          // Data to be sent to template engine.
+          // Data to be passed as props in your template.
           code: 'cf1a3f828287',
           username: 'john doe',
         },
@@ -92,6 +92,24 @@ export class ExampleService {
       .then(() => {})
       .catch(() => {});
   }
+}
+```
+
+4. React Template (ensure its always a `default` export)
+
+```javascript
+// welcome.tsx
+interface WelcomeProps {
+  code: string;
+  username: string;
+}
+
+export default function Welcome({ username, code }: WelcomeProps) {
+  return (
+    <div>
+      Hi {username}, thanks for signing up. Your code is {code}
+    </div>
+  );
 }
 ```
 
