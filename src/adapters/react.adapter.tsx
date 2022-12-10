@@ -3,7 +3,7 @@ import { render } from "@react-email/render";
 import * as path from "path";
 
 interface ReactAdapterConfig {
-  pretty?: false;
+  pretty?: boolean;
 }
 
 export class ReactAdapter implements TemplateAdapter {
