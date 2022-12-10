@@ -18,11 +18,13 @@
 
 - ⚡️ Write you mail templates in [React](https://github.com/facebook/react/) and [TypeScript](https://www.typescriptlang.org/)
 
+- 🦾 Write testable mail templates intended for mails clients.
+
 - ⛔ No more template not found or sending blank emails.
 
 - ⛔ No more issues of missing context / variables from template.
 
-- 💌 Built on [`react-email`](https://github.com/zenorocha/react-email) to give you access to their collection well-tested mail components.
+- 💌 Built on [`react-email`](https://github.com/zenorocha/react-email) - it reduces the pain of coding responsive emails with dark mode support.
 
 ## Installation
 
