@@ -16,15 +16,13 @@
 
 ## Features
 
-- ⚡️ Write you mail templates in [React](https://github.com/facebook/react/)
+- ⚡️ Write you mail templates in [React](https://github.com/facebook/react/) and [TypeScript](https://www.typescriptlang.org/)
 
 - ⛔ No more template not found or sending blank emails.
 
 - ⛔ No more issues of missing context / variables from template.
 
 - 💌 Built on [`react-email`](https://github.com/zenorocha/react-email) to give you access to their collection well-tested mail components.
-
-- 🦾 Write your templates in [TypeScript](https://www.typescriptlang.org/)
 
 ## Installation
 
@@ -33,7 +31,7 @@ npm install --save @webtre/nestjs-mailer-react-adapter @nestjs-modules/mailer re
 npm install --save-dev @types/react
 ```
 
-### Getting started
+### Getting Started
 
 1. Add this to your `tsconfig.json` if it's not already
 
@@ -54,7 +52,7 @@ import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
     MailerModule.forRoot({
       transport: "smtps://user@domain.com:pass@smtp.domain.com",
       defaults: {
-        from: '"nest-modules" <modules@nestjs.com>',
+        from: '"Webtre Technologies" <noreply@webtretech.xyz>',
       },
       template: {
         dir: __dirname + "/../templates",
@@ -79,12 +77,11 @@ export class ExampleService {
   public example(): void {
     this.mailerService
       .sendMail({
-        to: 'test@nestjs.com',
-        from: 'noreply@nestjs.com',
-        subject: 'Testing Nest Mailermodule with template ✔',
+        to: 'test@webtretech.xyz',
+        subject: 'Testing React template',
         template: 'welcome', // The compiled extension is appended automatically.
         context: {
-          // Data to be passed as props in your template.
+          // Data to be passed as props to your template.
           code: 'cf1a3f828287',
           username: 'john doe',
         },
