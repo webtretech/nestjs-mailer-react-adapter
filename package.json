@@ -1,5 +1,5 @@
 {
-  "name": "nestjs-mailer-react-adapter",
+  "name": "@webtre/nestjs-mailer-react-adapter",
   "version": "0.0.1",
   "description": "Build and send emails in  Nest framework using React.js",
   "main": "./dist/index.js",
@@ -22,9 +22,11 @@
     "module",
     "email",
     "nodemailer",
-    "node",
+    "nodejs",
     "mail",
-    "nest"
+    "nest",
+    "reactjs",
+    "nestjs-mailer"
   ],
   "author": "Lawrence Onah <paplow01@gmail.com>",
   "license": "MIT",
@@ -33,7 +35,6 @@
   },
   "homepage": "https://github.com/webtretech/nestjs-mailer-react-adapter#readme",
   "devDependencies": {
-    "@types/lodash": "^4.14.191",
     "@types/node": "^18.11.12",
     "@types/react": "^18.0.26",
     "tsup": "^6.5.0",
