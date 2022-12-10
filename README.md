@@ -18,7 +18,7 @@
 
 - ⚡️ Write you mail templates in [React](https://github.com/facebook/react/) and [TypeScript](https://www.typescriptlang.org/)
 
-- 🦾 Write testable mail templates intended for mails clients.
+- 🦾 Write testable mail templates intended for mail clients.
 
 - ⛔ No more template not found or sending blank emails.
 
