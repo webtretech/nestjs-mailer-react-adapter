@@ -52,9 +52,17 @@ import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
 @Module({
   imports: [
     MailerModule.forRoot({
-      transport: "smtps://user@domain.com:pass@smtp.domain.com",
+      transport: {
+        host: "smtp.domain.com",
+        port: 2525,
+        secure: false,
+        auth: {
+          user: "user@domain.com",
+          pass: "password",
+        },
+      },
       defaults: {
-        from: '"Webtre Technologies" <noreply@webtretech.xyz>',
+        from: '"Webtre Technologies" <hello@domain.com>',
       },
       template: {
         dir: __dirname + "/../templates",
@@ -76,20 +84,18 @@ import { MailerService } from '@nestjs-modules/mailer';
 export class ExampleService {
   constructor(private readonly mailerService: MailerService) {}
 
-  public example(): void {
-    this.mailerService
+  async public example(): void {
+    await this.mailerService
       .sendMail({
-        to: 'test@webtretech.xyz',
-        subject: 'Testing React template',
+        to: 'john@domain.com',
+        subject: 'Testing react template',
         template: 'welcome', // The compiled extension is appended automatically.
         context: {
           // Data to be passed as props to your template.
-          code: 'cf1a3f828287',
-          username: 'john doe',
+          code: '123456',
+          name: 'John Doe',
         },
-      })
-      .then(() => {})
-      .catch(() => {});
+      });
   }
 }
 ```
@@ -100,13 +106,13 @@ export class ExampleService {
 // welcome.tsx
 interface WelcomeProps {
   code: string;
-  username: string;
+  name: string;
 }
 
-export default function Welcome({ username, code }: WelcomeProps) {
+export default function Welcome({ name, code }: WelcomeProps) {
   return (
     <div>
-      Hi {username}, thanks for signing up. Your code is {code}
+      Hi {name}, thanks for signing up. Your code is {code}
     </div>
   );
 }
