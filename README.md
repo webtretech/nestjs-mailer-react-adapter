@@ -44,7 +44,7 @@ npm install --save-dev @types/react
 2. Configuration
 
 ```javascript
-//app.module.ts
+// src/app.module.ts
 import { Module } from "@nestjs/common";
 import { MailerModule } from "@nestjs-modules/mailer";
 import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
@@ -103,7 +103,7 @@ export class ExampleService {
 4. React Template (ensure its always a `default` export)
 
 ```javascript
-// welcome.tsx
+// src/templates/welcome.tsx
 interface WelcomeProps {
   code: string;
   name: string;
