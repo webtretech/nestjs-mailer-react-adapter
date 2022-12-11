@@ -65,7 +65,7 @@ import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
         from: '"Webtre Technologies" <hello@domain.com>',
       },
       template: {
-        dir: __dirname + "/../templates",
+        dir: __dirname + "/templates",
         adapter: new ReactAdapter(),
       },
     }),
