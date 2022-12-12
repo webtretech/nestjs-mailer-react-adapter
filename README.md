@@ -125,4 +125,4 @@ export default function Welcome({ name, code }: WelcomeProps) {
 
 ## License
 
-Copyright (c) 2022 <a href="https://github.com/@webtre/nestjs-mailer-react-adapter/blob/master/LICENSE" target="_blank">MIT</a>, <a href="https://github.com/webtretech" target="_blank">Webtre Technologies</a>
+Copyright (c) 2022 <a href="https://github.com/webtretech/nestjs-mailer-react-adapter/blob/main/LICENSE" target="_blank">MIT</a>, <a href="https://github.com/webtretech" target="_blank">Webtre Technologies</a>
