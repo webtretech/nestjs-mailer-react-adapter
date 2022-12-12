@@ -1,7 +1,7 @@
 {
   "name": "@webtre/nestjs-mailer-react-adapter",
-  "version": "0.0.2",
-  "description": "Build and send emails in  Nest framework using React.js",
+  "version": "0.0.3",
+  "description": "Build and send emails in Nest framework using React.js",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -9,7 +9,7 @@
     "dist/**"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts",
+    "build": "tsup src/index.ts --format esm,cjs --dts --minify",
     "dev": "tsup src/index.ts --format esm,cjs --dts --watch",
     "publish": "npm publish --access public"
   },
@@ -27,7 +27,11 @@
     "mail",
     "nest",
     "reactjs",
-    "nestjs-mailer"
+    "nestjs-mailer",
+    "node",
+    "react",
+    "mailer-module",
+    "adapter"
   ],
   "author": "Lawrence Onah <paplow01@gmail.com>",
   "license": "MIT",
