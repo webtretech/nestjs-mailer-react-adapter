@@ -35,13 +35,13 @@ npm install --save-dev @types/react
 
 ### Getting Started
 
-1. Add this to your `tsconfig.json` if it's not already
+To add support for react, ensure this is present in your `tsconfig.json`
 
 ```json
 "jsx": "react-jsx"
 ```
 
-2. Configuration
+1. Configuration
 
 ```javascript
 // src/app.module.ts
@@ -74,7 +74,7 @@ import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
 export class AppModule {}
 ```
 
-3. Service Provider
+2. Service Provider
 
 ```javascript
 import { Injectable } from '@nestjs/common';
@@ -100,7 +100,7 @@ export class ExampleService {
 }
 ```
 
-4. React Template (ensure its always a `default` export)
+3. React Template (ensure its a `default` export)
 
 ```javascript
 // src/templates/welcome.tsx
