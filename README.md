@@ -35,14 +35,10 @@ npm install --save-dev @types/react
 
 ### Getting Started
 
-To add support for react, ensure this is present in your `tsconfig.json`
+To add support for react, ensure this is present under compiler options in your `tsconfig.json`
 
 ```json
-{
-  "compilerOptions": {
-    "jsx": "react-jsx"
-  }
-}
+  "jsx": "react-jsx"
 ```
 
 1. Configuration
