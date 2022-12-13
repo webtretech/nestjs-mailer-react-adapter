@@ -1,1 +1,1 @@
-export * from "./adapters/react.adapter";
+export * from "./react.adapter";

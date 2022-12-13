@@ -7,10 +7,12 @@ interface ReactAdapterConfig {
 }
 
 export class ReactAdapter implements TemplateAdapter {
-  private readonly config: ReactAdapterConfig;
+  private config: ReactAdapterConfig = {
+    pretty: false,
+  };
 
   constructor(config?: ReactAdapterConfig) {
-    this.config = { pretty: false, ...config };
+    Object.assign(this.config, config);
   }
 
   public compile(mail: any, callback: any, options: MailerOptions): void {
