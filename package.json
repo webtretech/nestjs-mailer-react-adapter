@@ -12,8 +12,8 @@
     "node": ">=16.x"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --minify",
-    "dev": "tsup src/index.ts --format esm,cjs --dts --watch"
+    "build": "tsup src/index.ts --format esm,cjs --dts --external react",
+    "dev": "tsup src/index.ts --format esm,cjs --dts --external react --watch"
   },
   "repository": {
     "type": "git",
