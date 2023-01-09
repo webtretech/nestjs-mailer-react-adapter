@@ -29,8 +29,7 @@
 ## Installation
 
 ```sh
-npm install --save @webtre/nestjs-mailer-react-adapter @nestjs-modules/mailer react
-npm install --save-dev @types/react
+npm install --save @webtre/nestjs-mailer-react-adapter @nestjs-modules/mailer
 ```
 
 ### Getting Started
