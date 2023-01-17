@@ -24,12 +24,12 @@
 
 - ⛔ No more issues of missing context / variables from template.
 
-- 💌 Built on [`react-email`](https://github.com/zenorocha/react-email) - it reduces the pain of coding responsive emails with dark mode support.
+- 💌 Built on [`react-email`](https://github.com/resendlabs/react-email) - it reduces the pain of coding responsive emails with dark mode support.
 
 ## Installation
 
 ```sh
-npm install --save @webtre/nestjs-mailer-react-adapter @nestjs-modules/mailer
+npm i @webtre/nestjs-mailer-react-adapter @nestjs-modules/mailer
 ```
 
 ### Getting Started
@@ -65,7 +65,13 @@ import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
       },
       template: {
         dir: __dirname + "/templates",
+        // Use the adapter
         adapter: new ReactAdapter(),
+        // Or with optional config
+        adapter: new ReactAdapter({
+          pretty: false,
+          plainText: true,
+        }),
       },
     }),
   ],
@@ -119,7 +125,7 @@ export default function Welcome({ name, code }: WelcomeProps) {
 
 ## Credits
 
-- [`react-email`](https://github.com/zenorocha/react-email) - build and send emails using React
+- [`react-email`](https://github.com/resendlabs/react-email) - build and send emails using React
 - [`@nestjs-modules/mailer`](https://github.com/nest-modules/mailer) - a mailer module for Nest framework (node.js)
 
 ## License
