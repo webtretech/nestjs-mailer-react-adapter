@@ -1,6 +1,6 @@
 {
   "name": "@webtre/nestjs-mailer-react-adapter",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Build and send emails in Nest framework using React.js",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -9,7 +9,7 @@
     "dist/**"
   ],
   "engines": {
-    "node": ">=16.x"
+    "node": ">=18"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts --external react",
@@ -42,8 +42,10 @@
   },
   "homepage": "https://github.com/webtretech/nestjs-mailer-react-adapter#readme",
   "dependencies": {
-    "@nestjs-modules/mailer": "^1.8.1",
     "@react-email/render": "^0.0.2"
+  },
+  "peerDependencies": {
+    "@nestjs-modules/mailer": "^1.8.1"
   },
   "devDependencies": {
     "@types/node": "^18.11.12",
