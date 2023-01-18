@@ -28,7 +28,7 @@
 
 ## Installation
 
-> This library is an adapter for [`@nestjs-modules/mailer`](https://github.com/nest-modules/mailer). If you're yet to have it installed, do so by running the command below.
+> This library is an adapter for the [`@nestjs-modules/mailer`](https://github.com/nest-modules/mailer) module. If you're yet to have it installed, do so by running the command below.
 
 ```sh
 npm install @nestjs-modules/mailer nodemailer
@@ -138,4 +138,4 @@ export default function Welcome({ name, code }: WelcomeProps) {
 
 ## License
 
-Copyright (c) 2022 <a href="https://github.com/webtretech/nestjs-mailer-react-adapter/blob/main/LICENSE" target="_blank">MIT</a>, <a href="https://github.com/webtretech" target="_blank">Webtre Technologies</a>
+[MIT](./LICENSE) License © 2022 [Webtre Technologies](https://github.com/webtretech)
