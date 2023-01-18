@@ -28,8 +28,16 @@
 
 ## Installation
 
+> This library is an adapter for [`@nestjs-modules/mailer`](https://github.com/nest-modules/mailer). If you're yet to have it installed, do so by running the command below.
+
 ```sh
-npm i @webtre/nestjs-mailer-react-adapter @nestjs-modules/mailer
+npm install @nestjs-modules/mailer nodemailer
+```
+
+Then install this library
+
+```sh
+npm install @webtre/nestjs-mailer-react-adapter
 ```
 
 ### Getting Started
