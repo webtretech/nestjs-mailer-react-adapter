@@ -34,7 +34,7 @@
 npm install @nestjs-modules/mailer nodemailer
 ```
 
-Then install this library
+Install this library
 
 ```sh
 npm install @webtre/nestjs-mailer-react-adapter
@@ -75,6 +75,7 @@ import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
         dir: __dirname + "/templates",
         // Use the adapter
         adapter: new ReactAdapter(),
+
         // Or with optional config
         adapter: new ReactAdapter({
           pretty: false,
