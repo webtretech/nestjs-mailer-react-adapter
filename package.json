@@ -22,6 +22,25 @@
     "type": "git",
     "url": "git+https://github.com/webtretech/nestjs-mailer-react-adapter.git"
   },
+  "author": "Lawrence Onah <paplow01@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/webtretech/nestjs-mailer-react-adapter/issues"
+  },
+  "homepage": "https://github.com/webtretech/nestjs-mailer-react-adapter#readme",
+  "dependencies": {
+    "@react-email/render": "^0.0.7"
+  },
+  "peerDependencies": {
+    "@nestjs-modules/mailer": "^1.8.1"
+  },
+  "devDependencies": {
+    "@nestjs-modules/mailer": "^1.9.1",
+    "@types/node": "^20.5.4",
+    "@types/react": "^18.2.21",
+    "tsup": "^7.2.0",
+    "typescript": "^5.1.6"
+  },
   "keywords": [
     "nestjs",
     "mailer",
@@ -37,23 +56,5 @@
     "react",
     "mailer-module",
     "adapter"
-  ],
-  "author": "Lawrence Onah <paplow01@gmail.com>",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/webtretech/nestjs-mailer-react-adapter/issues"
-  },
-  "homepage": "https://github.com/webtretech/nestjs-mailer-react-adapter#readme",
-  "dependencies": {
-    "@react-email/render": "^0.0.6"
-  },
-  "peerDependencies": {
-    "@nestjs-modules/mailer": "^1.8.1"
-  },
-  "devDependencies": {
-    "@types/node": "^18.11.12",
-    "@types/react": "^18.0.26",
-    "tsup": "^6.5.0",
-    "typescript": "^4.9.4"
-  }
+  ]
 }

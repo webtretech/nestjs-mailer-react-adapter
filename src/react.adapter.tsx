@@ -1,6 +1,6 @@
 import { MailerOptions, TemplateAdapter } from "@nestjs-modules/mailer";
 import { Options as RenderOptions, render } from "@react-email/render";
-import * as path from "path";
+import path from "node:path";
 
 interface ReactAdapterConfig extends RenderOptions {}
 
