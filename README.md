@@ -20,35 +20,34 @@
 
 - 🦾 Write testable mail templates intended for mail clients.
 
-- ⛔ No more template not found or sending blank emails.
+- ⛔ No more template not found or sending blank of mails.
 
-- ⛔ No more issues of missing context / variables from template.
+- ⛔ No more cases of missing context / variables from template.
 
-- 💌 Built on [`react-email`](https://github.com/resendlabs/react-email) - it reduces the pain of coding responsive emails with dark mode support.
+- 💌 Built on top of [`react-email`](https://github.com/resendlabs/react-email) - the next generation of writing emails.
 
 ## Installation
 
-> This library is an adapter for the [`@nestjs-modules/mailer`](https://github.com/nest-modules/mailer) module. If you're yet to have it installed, do so by running the command below.
+> This library is an adapter for the [`@nestjs-modules/mailer`](https://github.com/nest-modules/mailer) module, so we'll install the dependencies alongside by running the command below.
 
 ```sh
-npm install @nestjs-modules/mailer nodemailer
-```
-
-Install this library
-
-```sh
-npm install @webtre/nestjs-mailer-react-adapter
+npm i @webtre/nestjs-mailer-react-adapter @nestjs-modules/mailer nodemailer
 ```
 
 ### Getting Started
 
-To add support for react, ensure this is present under compiler options in your `tsconfig.json`
+To add support for react, update your `tsconfig.json` like below
 
-```json
-  "jsx": "react-jsx"
+```javascript
+{
+  "compilerOptions": {
+    // include this line
+    "jsx": "react-jsx"
+  }
+}
 ```
 
-1. Configuration
+### Configuration
 
 ```javascript
 // src/app.module.ts
@@ -88,7 +87,7 @@ import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
 export class AppModule {}
 ```
 
-2. Service Provider
+### Service Provider
 
 ```javascript
 import { Injectable } from '@nestjs/common';
@@ -104,8 +103,7 @@ export class ExampleService {
         to: 'john@domain.com',
         subject: 'Testing react template',
         template: 'welcome', // The compiled extension is appended automatically.
-        context: {
-          // Data to be passed as props to your template.
+        context: { // Data to be passed as props to your template.
           code: '123456',
           name: 'John Doe',
         },
@@ -114,16 +112,16 @@ export class ExampleService {
 }
 ```
 
-3. React Template (ensure its a `default` export)
+### React Template (`default` export only)
 
 ```javascript
 // src/templates/welcome.tsx
-interface WelcomeProps {
+interface Props {
   code: string;
   name: string;
 }
 
-export default function Welcome({ name, code }: WelcomeProps) {
+export default function Welcome({ name, code }: Props) {
   return (
     <div>
       Hi {name}, thanks for signing up. Your code is {code}
