@@ -36,12 +36,12 @@ npm i @webtre/nestjs-mailer-react-adapter @nestjs-modules/mailer nodemailer
 
 ### Getting Started
 
-To add support for react, update your `tsconfig.json` like below
+To add `react` support to your project, modify `tsconfig.json`
 
 ```javascript
 {
   "compilerOptions": {
-    // include this line
+    // add this line
     "jsx": "react-jsx"
   }
 }
@@ -112,7 +112,7 @@ export class ExampleService {
 }
 ```
 
-### React Template (`default` export only)
+### React Template
 
 ```javascript
 // src/templates/welcome.tsx
