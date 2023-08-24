@@ -2,15 +2,15 @@ import { MailerOptions, TemplateAdapter } from "@nestjs-modules/mailer";
 import { Options as RenderOptions, render } from "@react-email/render";
 import path from "node:path";
 
-interface ReactAdapterConfig extends RenderOptions {}
+interface AdapterConfig extends RenderOptions {}
 
 export class ReactAdapter implements TemplateAdapter {
-  private config: ReactAdapterConfig = {
+  private config: AdapterConfig = {
     pretty: false,
     plainText: false,
   };
 
-  constructor(config?: ReactAdapterConfig) {
+  constructor(config?: AdapterConfig) {
     Object.assign(this.config, config);
   }
 
