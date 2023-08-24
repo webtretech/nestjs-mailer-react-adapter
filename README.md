@@ -16,13 +16,13 @@
 
 ## Features
 
-- ⚡️ Write your mail templates in [React](https://github.com/facebook/react/) and [TypeScript](https://www.typescriptlang.org/)
+- ⚡️ Write your email templates in [React](https://github.com/facebook/react/) and [TypeScript](https://www.typescriptlang.org/)
 
-- 🦾 Write testable mail templates intended for mail clients.
+- ⛔ No more template not found / sending blank emails.
 
-- ⛔ No more template not found or sending blank of mails.
+- ⛔ No more missing context / variables from template.
 
-- ⛔ No more cases of missing context / variables from template.
+- 🦾 Write testable templates intended for email clients.
 
 - 💌 Built on top of [`react-email`](https://github.com/resendlabs/react-email) — the next generation of writing emails.
 
