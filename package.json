@@ -3,14 +3,23 @@
   "version": "0.0.9",
   "description": "Build and send emails in Nest framework using React.js",
   "main": "./dist/index.js",
-  "exports": {
-    "import": "./dist/index.mjs",
-    "require": "./dist/index.js"
-  },
+  "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "files": [
     "dist/**"
   ],
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
   "engines": {
     "node": ">=16"
   },
