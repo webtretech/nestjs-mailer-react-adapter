@@ -24,7 +24,7 @@
 
 - ⛔ No more cases of missing context / variables from template.
 
-- 💌 Built on top of [`react-email`](https://github.com/resendlabs/react-email) - the next generation of writing emails.
+- 💌 Built on top of [`react-email`](https://github.com/resendlabs/react-email) — the next generation of writing emails.
 
 ## Installation
 
@@ -132,8 +132,8 @@ export default function Welcome({ name, code }: Props) {
 
 ## Credits
 
-- [`react-email`](https://github.com/resendlabs/react-email) - build and send emails using React
-- [`@nestjs-modules/mailer`](https://github.com/nest-modules/mailer) - a mailer module for Nest framework (node.js)
+- [`react-email`](https://github.com/resendlabs/react-email) — build and send emails using React
+- [`@nestjs-modules/mailer`](https://github.com/nest-modules/mailer) — a mailer module for Nest framework (node.js)
 
 ## License
 
