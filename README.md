@@ -28,7 +28,7 @@
 
 ## Installation
 
-> This library is an adapter for the [`@nestjs-modules/mailer`](https://github.com/nest-modules/mailer) module which means, we've to install it as a dependency by running the command below.
+> This library is an adapter for the [`@nestjs-modules/mailer`](https://github.com/nest-modules/mailer) module, so we'll install the dependencies alongside, run the command below.
 
 ```sh
 npm i @webtre/nestjs-mailer-react-adapter @nestjs-modules/mailer nodemailer
@@ -36,17 +36,18 @@ npm i @webtre/nestjs-mailer-react-adapter @nestjs-modules/mailer nodemailer
 
 ### Getting Started
 
-To add support for react, ensure this is present under `compilerOptions` in your `tsconfig.json`
+To add support for react, update your `tsconfig.json` like below
 
 ```javascript
 {
   "compilerOptions": {
+    // include this line
     "jsx": "react-jsx"
   }
 }
 ```
 
-#### Configuration
+### Configuration
 
 ```javascript
 // src/app.module.ts
@@ -86,7 +87,7 @@ import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
 export class AppModule {}
 ```
 
-#### Service Provider
+### Service Provider
 
 ```javascript
 import { Injectable } from '@nestjs/common';
@@ -102,8 +103,7 @@ export class ExampleService {
         to: 'john@domain.com',
         subject: 'Testing react template',
         template: 'welcome', // The compiled extension is appended automatically.
-        context: {
-          // Data to be passed as props to your template.
+        context: { // Data to be passed as props to your template.
           code: '123456',
           name: 'John Doe',
         },
@@ -112,7 +112,7 @@ export class ExampleService {
 }
 ```
 
-#### React Template (default `export` only)
+### React Template (`default` export only)
 
 ```javascript
 // src/templates/welcome.tsx
