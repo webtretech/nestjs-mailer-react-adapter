@@ -1,8 +1,9 @@
 import { MailerOptions, TemplateAdapter } from "@nestjs-modules/mailer";
 import { Options as RenderOptions, render } from "@react-email/render";
+import { getModuleExport, load } from "locter";
 import path from "node:path";
 
-interface AdapterConfig extends RenderOptions {}
+type AdapterConfig = RenderOptions;
 
 export class ReactAdapter implements TemplateAdapter {
   private config: AdapterConfig = {
@@ -23,11 +24,11 @@ export class ReactAdapter implements TemplateAdapter {
       : path.join(options.template.dir, path.dirname(template));
     const templatePath = path.join(templateDir, templateName + templateExt);
 
-    import(templatePath)
+    load(templatePath)
       .then((tmpl) => {
-        const Component = tmpl.default.default;
-        const html = render(<Component {...context} />, this.config);
-        mail.data.html = html;
+        const moduleDefault = getModuleExport(tmpl);
+        const Component = moduleDefault.value;
+        mail.data.html = render(<Component {...context} />, this.config);
 
         return callback();
       })

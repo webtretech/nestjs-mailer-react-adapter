@@ -38,7 +38,8 @@
   },
   "homepage": "https://github.com/webtretech/nestjs-mailer-react-adapter#readme",
   "dependencies": {
-    "@react-email/render": "^0.0.7"
+    "@react-email/render": "^0.0.7",
+    "locter": "^1.2.2"
   },
   "peerDependencies": {
     "@nestjs-modules/mailer": "^1.8.1"
