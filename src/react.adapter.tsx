@@ -2,6 +2,7 @@ import { MailerOptions, TemplateAdapter } from "@nestjs-modules/mailer";
 import { Options as RenderOptions, render } from "@react-email/render";
 import { getModuleExport, load } from "locter";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 type AdapterConfig = RenderOptions;
 
@@ -23,8 +24,9 @@ export class ReactAdapter implements TemplateAdapter {
       ? path.dirname(template)
       : path.join(options.template.dir, path.dirname(template));
     const templatePath = path.join(templateDir, templateName + templateExt);
+    const templatePathFileURL = pathToFileURL(templatePath).href;
 
-    load(templatePath)
+    load(templatePathFileURL)
       .then((tmpl) => {
         const moduleDefault = getModuleExport(tmpl);
         const Component = moduleDefault.value;
