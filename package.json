@@ -24,8 +24,8 @@
     "node": ">=16"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --external react",
-    "dev": "tsup src/index.ts --format esm,cjs --dts --external react --watch"
+    "build": "tsup",
+    "dev": "tsup --watch"
   },
   "repository": {
     "type": "git",
@@ -38,18 +38,18 @@
   },
   "homepage": "https://github.com/webtretech/nestjs-mailer-react-adapter#readme",
   "dependencies": {
-    "@react-email/render": "^0.0.7",
-    "locter": "^1.2.2"
+    "@react-email/render": "^0.0.13",
+    "locter": "^2.1.0"
   },
   "peerDependencies": {
-    "@nestjs-modules/mailer": "^1.8.1"
+    "@nestjs-modules/mailer": "^2.0.0"
   },
   "devDependencies": {
-    "@nestjs-modules/mailer": "^1.9.1",
-    "@types/node": "^20.8.2",
-    "@types/react": "^18.2.25",
-    "tsup": "^7.2.0",
-    "typescript": "^5.2.2"
+    "@nestjs-modules/mailer": "^2.0.2",
+    "@types/node": "^20.12.12",
+    "@types/react": "^18.3.2",
+    "tsup": "^8.0.2",
+    "typescript": "^5.4.5"
   },
   "keywords": [
     "nestjs",
