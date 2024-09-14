@@ -79,6 +79,12 @@ import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
         adapter: new ReactAdapter({
           pretty: false,
           plainText: true,
+          htmlToTextOptions: {
+            wordwrap: 130,
+            limits: {
+              ellipsis: "...",
+            },
+          },
         }),
       },
     }),
@@ -86,6 +92,8 @@ import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
 })
 export class AppModule {}
 ```
+
+To see more options that can be passed to the `htmlToTextOptions` object, [click here.](https://github.com/html-to-text/node-html-to-text/tree/master/packages/html-to-text)
 
 ### Service Provider
 
