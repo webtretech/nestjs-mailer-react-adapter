@@ -93,7 +93,7 @@ import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
 export class AppModule {}
 ```
 
-To see more options that can be passed to the `htmlToTextOptions` object, [click here.](https://github.com/html-to-text/node-html-to-text/tree/master/packages/html-to-text)
+To see more options that can be passed to the `htmlToTextOptions` object, [click here](https://github.com/html-to-text/node-html-to-text/tree/master/packages/html-to-text#options).
 
 ### Service Provider
 
