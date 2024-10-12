@@ -21,6 +21,7 @@
   "dependencies": {
     "@nestjs-modules/mailer": "^2.0.2",
     "@nestjs/common": "^10.3.2",
+    "@nestjs/config": "^3.2.3",
     "@nestjs/core": "^10.3.2",
     "@nestjs/platform-express": "^10.3.2",
     "@webtre/nestjs-mailer-react-adapter": "^0.2.1",

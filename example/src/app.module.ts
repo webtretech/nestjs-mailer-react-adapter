@@ -1,28 +1,27 @@
+import { MailerModule } from '@nestjs-modules/mailer';
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigType } from '@nestjs/config';
+import { ReactAdapter } from '@webtre/nestjs-mailer-react-adapter';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { MailerModule } from '@nestjs-modules/mailer';
-import { ReactAdapter } from '@webtre/nestjs-mailer-react-adapter';
+import mailerConfig from './config/mailer.config';
 
 @Module({
   imports: [
-    MailerModule.forRoot({
-      transport: {
-        host: 'smtp.domain.com',
-        port: 2525,
-        secure: false,
-        auth: {
-          user: 'user@domain.com',
-          pass: 'password',
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [mailerConfig],
+      envFilePath: __dirname + '/../.env',
+    }),
+    MailerModule.forRootAsync({
+      inject: [mailerConfig.KEY],
+      useFactory: (mailerConf: ConfigType<typeof mailerConfig>) => ({
+        ...mailerConf,
+        template: {
+          adapter: new ReactAdapter(),
+          dir: __dirname + '/templates',
         },
-      },
-      defaults: {
-        from: '"Webtre Technologies" <hello@domain.com>',
-      },
-      template: {
-        dir: __dirname + '/templates',
-        adapter: new ReactAdapter(),
-      },
+      }),
     }),
   ],
   controllers: [AppController],
