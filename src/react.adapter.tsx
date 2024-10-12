@@ -27,14 +27,15 @@ export class ReactAdapter implements TemplateAdapter {
     const templatePathFileURL = pathToFileURL(templatePath).href;
 
     load(templatePathFileURL)
-      .then((tmplModule) => {
+      .then(async (tmplModule) => {
         const moduleDefault = getModuleExport(
           tmplModule,
           (key) => key === "default"
         );
-        const Component = moduleDefault.value;
 
-        mail.data.html = render(<Component {...context} />, this.config);
+        const Comp = moduleDefault.value;
+        mail.data.html = await render(<Comp {...context} />, this.config);
+
         return callback();
       })
       .catch(callback);
