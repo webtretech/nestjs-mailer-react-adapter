@@ -105,7 +105,7 @@ import { MailerService } from '@nestjs-modules/mailer';
 export class ExampleService {
   constructor(private readonly mailerService: MailerService) {}
 
-  async public example(): void {
+  async public example(): Promise<void> {
     await this.mailerService
       .sendMail({
         to: 'john@domain.com',
