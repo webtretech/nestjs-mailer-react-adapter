@@ -1,5 +1,6 @@
 # source
 src
+example
 package-lock.json
 tsconfig.json
 tsup.config.ts
