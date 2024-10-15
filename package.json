@@ -1,6 +1,6 @@
 {
   "name": "@webtre/nestjs-mailer-react-adapter",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Build and send emails in Nest framework using React.js",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
