@@ -140,7 +140,7 @@ export default function Welcome({ name, code }: Props) {
 
 ## Examples
 
-You can also check the [examples folder](./examples) in this repository for a working usage example.
+You could also check the [examples folder](./examples) in this repo for a working usage example and how to set it up with [SWC](https://docs.nestjs.com/recipes/swc) using [gulp](https://gulpjs.com/).
 
 ## Credits
 
