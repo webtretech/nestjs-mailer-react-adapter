@@ -138,9 +138,9 @@ export default function Welcome({ name, code }: Props) {
 }
 ```
 
-## Example
+## Examples
 
-You can also check the [example folder](./example) in this repository for a working usage example.
+You can also check the [examples folder](./examples) in this repository for a working usage example.
 
 ## Credits
 
