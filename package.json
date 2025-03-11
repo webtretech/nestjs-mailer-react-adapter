@@ -27,6 +27,9 @@
     "build": "tsup",
     "dev": "tsup --watch"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/webtretech/nestjs-mailer-react-adapter.git"
