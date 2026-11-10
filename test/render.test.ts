@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -75,6 +76,19 @@ async function expectRender(
   expect(outcome.html).toBe(expected);
 }
 
+async function expectElementTypeError(template: string): Promise<void> {
+  const outcome = await run(
+    new ReactAdapter(),
+    template,
+    mailerOptions(FIXTURES),
+  );
+  expect(outcome.calls).toBe(1);
+  expect(outcome.args).toHaveLength(1);
+  expect(outcome.args[0]).toBeInstanceOf(Error);
+  expect((outcome.args[0] as Error).message).toMatch(/Element type is invalid/);
+  expect(outcome.html).toBeUndefined();
+}
+
 describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => {
   test("characterization: tsc-compiled CJS template by relative name without extension", async () => {
     await expectRender("tsc-cjs", "tsc-cjs");
@@ -148,5 +162,33 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
 
   test("characterization: .js template under a type module package, loaded from a subdirectory", async () => {
     await expectRender("esm-pkg/welcome", "esm-pkg-welcome");
+  });
+
+  test("characterization: CJS template with exports.default and no __esModule fails with Element type is invalid", async () => {
+    await expectElementTypeError("exports-default-no-esmodule");
+  });
+
+  test("characterization: ESM template with no default export fails with Element type is invalid", async () => {
+    await expectElementTypeError("named-only.mjs");
+  });
+
+  // Exercises loadTemplate's import() fallback: require() throws ERR_REQUIRE_ASYNC_MODULE for top-level await.
+  // Under Vitest this import() runs through Vite, not natively; plan 01-04's verify-build covers the native run.
+  test("characterization: top-level-await ESM template loads through the import() fallback", async () => {
+    const file = path.join(FIXTURES, "tla-fallback.mjs");
+    let code: unknown;
+    try {
+      createRequire(file)(file);
+    } catch (error) {
+      code = (error as NodeJS.ErrnoException).code;
+    }
+    // Precondition: on this Node, require() really rejects the fixture, so the render below went through the fallback.
+    expect(code).toBe("ERR_REQUIRE_ASYNC_MODULE");
+    await expectRender("tla-fallback.mjs", "tla-fallback");
+  });
+
+  // Pins the interim loader's dotted-name outcome, which may differ from 0.2.5 (D-20).
+  test("characterization: dotted template name dotted.v2", async () => {
+    await expectRender("dotted.v2", "dotted-v2");
   });
 });
