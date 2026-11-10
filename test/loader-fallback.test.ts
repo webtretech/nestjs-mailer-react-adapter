@@ -23,7 +23,7 @@ vi.mock("node:module", async (importOriginal) => {
 
 const FIXTURES = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
-  "fixtures",
+  "fixtures"
 );
 
 interface Outcome {
@@ -47,11 +47,11 @@ function run(template: string): Promise<Outcome> {
           first = args;
           setTimeout(
             () => resolve({ args: first, calls, html: mail.data.html }),
-            50,
+            50
           );
         }
       },
-      { template: { dir: FIXTURES } },
+      { template: { dir: FIXTURES } }
     );
   });
 }

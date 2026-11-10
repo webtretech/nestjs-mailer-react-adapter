@@ -1,0 +1,7 @@
+dist
+coverage
+examples
+test/fixtures
+package-lock.json
+*.md
+.gsd

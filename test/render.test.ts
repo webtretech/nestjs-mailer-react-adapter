@@ -10,7 +10,7 @@ import { ReactAdapter } from "../src";
 
 const FIXTURES = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
-  "fixtures",
+  "fixtures"
 );
 
 const DOCTYPE =
@@ -38,7 +38,7 @@ interface Outcome {
 function run(
   adapter: ReactAdapter,
   template: string,
-  options: MailerOptions,
+  options: MailerOptions
 ): Promise<Outcome> {
   const mail = {
     data: { template, context: { body: "Body" }, html: undefined as unknown },
@@ -54,11 +54,11 @@ function run(
           first = args;
           setTimeout(
             () => resolve({ args: first, calls, html: mail.data.html }),
-            50,
+            50
           );
         }
       },
-      options,
+      options
     );
   });
 }
@@ -68,7 +68,7 @@ async function expectRender(
   id: string,
   options: MailerOptions = mailerOptions(FIXTURES),
   adapter: ReactAdapter = new ReactAdapter(),
-  expected: string = html(id),
+  expected: string = html(id)
 ): Promise<void> {
   const outcome = await run(adapter, template, options);
   expect(outcome.calls).toBe(1);
@@ -80,7 +80,7 @@ async function expectElementTypeError(template: string): Promise<void> {
   const outcome = await run(
     new ReactAdapter(),
     template,
-    mailerOptions(FIXTURES),
+    mailerOptions(FIXTURES)
   );
   expect(outcome.calls).toBe(1);
   expect(outcome.args).toHaveLength(1);
@@ -98,7 +98,7 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
     await expectRender(
       path.join(FIXTURES, "tsc-cjs.js"),
       "tsc-cjs",
-      mailerOptions(os.tmpdir()),
+      mailerOptions(os.tmpdir())
     );
   });
 
@@ -112,7 +112,7 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
       "tsc-cjs",
       mailerOptions(FIXTURES),
       new ReactAdapter({ pretty: true }),
-      pretty("tsc-cjs"),
+      pretty("tsc-cjs")
     );
   });
 
@@ -120,13 +120,13 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
     const outcome = await run(
       new ReactAdapter(),
       "does-not-exist",
-      mailerOptions(FIXTURES),
+      mailerOptions(FIXTURES)
     );
     expect(outcome.calls).toBe(1);
     expect(outcome.args).toHaveLength(1);
     expect(outcome.args[0]).toBeInstanceOf(Error);
     expect((outcome.args[0] as NodeJS.ErrnoException).code).toBe(
-      "MODULE_NOT_FOUND",
+      "MODULE_NOT_FOUND"
     );
     expect(outcome.html).toBeUndefined();
   });
@@ -141,8 +141,8 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
         () => {
           called += 1;
         },
-        {},
-      ),
+        {}
+      )
     ).toThrow(TypeError);
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(called).toBe(0);

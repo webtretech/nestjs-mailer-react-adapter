@@ -29,7 +29,9 @@
     "dev": "tsdown --watch",
     "test": "vitest run",
     "lint": "eslint .",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "publishConfig": {
     "access": "public"
