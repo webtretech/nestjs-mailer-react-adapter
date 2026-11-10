@@ -8,6 +8,10 @@ import type { ComponentType } from "react";
 
 type TemplateComponent = ComponentType<Record<string, unknown>>;
 
+type TemplateMail = {
+  data: { template: string; context?: Record<string, unknown>; html?: string };
+};
+
 function isEsModule(mod: unknown): mod is { default: unknown } {
   return typeof mod === "object" && mod !== null && "__esModule" in mod;
 }
@@ -49,8 +53,12 @@ export class ReactAdapter implements TemplateAdapter {
     Object.assign(this.config, config);
   }
 
-  public compile(mail: any, callback: any, options: MailerOptions): void {
-    const { context, template } = mail.data;
+  public compile(
+    mail: unknown,
+    callback: (err?: unknown) => unknown,
+    options: MailerOptions
+  ): void {
+    const { context, template } = (mail as TemplateMail).data;
     const templateExt = path.extname(template) || ".js";
     const templateName = path.basename(template, templateExt);
     const templateDir = path.isAbsolute(template)
@@ -61,7 +69,7 @@ export class ReactAdapter implements TemplateAdapter {
     loadTemplate(templatePath)
       .then((Comp) => render(<Comp {...context} />, this.config))
       .then((html) => {
-        mail.data.html = html;
+        (mail as TemplateMail).data.html = html;
         return callback();
       })
       .catch(callback);
