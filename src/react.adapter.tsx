@@ -68,10 +68,12 @@ export class ReactAdapter implements TemplateAdapter {
 
     loadTemplate(templatePath)
       .then((Comp) => render(<Comp {...context} />, this.config))
-      .then((html) => {
-        (mail as TemplateMail).data.html = html;
-        return callback();
-      })
-      .catch(callback);
+      .then(
+        (html) => {
+          (mail as TemplateMail).data.html = html;
+          return callback();
+        },
+        (error: unknown) => callback(error)
+      );
   }
 }

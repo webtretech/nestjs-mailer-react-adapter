@@ -191,4 +191,51 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
   test("characterization: dotted template name dotted.v2", async () => {
     await expectRender("dotted.v2", "dotted-v2");
   });
+
+  // A throw from the mailer's callback on the success path must not route into the failure handler,
+  // so the callback runs once and the throw surfaces as an unhandled rejection, captured here.
+  test("a callback that throws on the success path is called once and its throw becomes an unhandled rejection", async () => {
+    const thrown = new Error("callback failed");
+    const mail = {
+      data: {
+        template: "tsc-cjs",
+        context: { body: "Body" },
+        html: undefined as unknown,
+      },
+    };
+    // Vitest fails the run on an unhandled rejection, so detach its listeners while this test captures one.
+    const saved = process.listeners("unhandledRejection");
+    process.removeAllListeners("unhandledRejection");
+    try {
+      let calls = 0;
+      let onSecondCall: () => void = () => {};
+      const secondCall = new Promise<"second call">((resolve) => {
+        onSecondCall = () => resolve("second call");
+      });
+      const rejection = new Promise<unknown>((resolve) => {
+        process.once("unhandledRejection", resolve);
+      });
+      new ReactAdapter().compile(
+        mail,
+        () => {
+          calls += 1;
+          if (calls === 1) {
+            throw thrown;
+          }
+          onSecondCall();
+        },
+        mailerOptions(FIXTURES)
+      );
+      // The rejection settles this on the fixed chain; a second callback call settles it on the old one.
+      const settled = await Promise.race([rejection, secondCall]);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(calls).toBe(1);
+      expect(settled).toBe(thrown);
+    } finally {
+      process.removeAllListeners("unhandledRejection");
+      for (const listener of saved) {
+        process.on("unhandledRejection", listener);
+      }
+    }
+  });
 });
