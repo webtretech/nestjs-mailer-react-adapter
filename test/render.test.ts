@@ -133,4 +133,20 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(called).toBe(0);
   });
+
+  test("characterization: SWC-compiled CJS template with a default getter", async () => {
+    await expectRender("swc-cjs", "swc-cjs");
+  });
+
+  test("characterization: CJS template assigned to module.exports", async () => {
+    await expectRender("module-exports", "module-exports");
+  });
+
+  test("characterization: native ESM .mjs template with an explicit extension", async () => {
+    await expectRender("esm.mjs", "esm-mjs");
+  });
+
+  test("characterization: .js template under a type module package, loaded from a subdirectory", async () => {
+    await expectRender("esm-pkg/welcome", "esm-pkg-welcome");
+  });
 });
