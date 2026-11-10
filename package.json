@@ -2,9 +2,9 @@
   "name": "@webtre/nestjs-mailer-react-adapter",
   "version": "0.2.5",
   "description": "Build and send emails in Nest framework using React.js",
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
+  "types": "./dist/index.d.cts",
   "files": [
     "dist/**"
   ],
@@ -15,17 +15,18 @@
         "default": "./dist/index.mjs"
       },
       "require": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
       }
-    }
+    },
+    "./package.json": "./package.json"
   },
   "engines": {
-    "node": "^18.19.1 || ^20.11.1 || >=22.0.0"
+    "node": ">=20.19"
   },
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch"
+    "build": "tsdown",
+    "dev": "tsdown --watch"
   },
   "publishConfig": {
     "access": "public"
@@ -41,18 +42,28 @@
   },
   "homepage": "https://github.com/webtretech/nestjs-mailer-react-adapter#readme",
   "dependencies": {
-    "@react-email/render": "1.0.2",
-    "locter": "^2.1.6"
+    "@react-email/render": "^2.3.0"
   },
   "peerDependencies": {
-    "@nestjs-modules/mailer": "^2.0.0"
+    "@nestjs-modules/mailer": "^2.0.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
-    "@nestjs-modules/mailer": "^2.0.2",
-    "@types/node": "^22.13.10",
-    "@types/react": "^19.0.10",
-    "tsup": "^8.4.0",
-    "typescript": "^5.8.2"
+    "@eslint/js": "^10.0.1",
+    "@nestjs-modules/mailer": "^4.0.0",
+    "@types/node": "^20",
+    "@types/react": "^19.3.0",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsdown": "^0.23.7",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.72.2",
+    "vitest": "^4.1.12"
   },
   "keywords": [
     "nestjs",

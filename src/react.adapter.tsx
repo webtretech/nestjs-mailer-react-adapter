@@ -1,9 +1,43 @@
+import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { MailerOptions, TemplateAdapter } from "@nestjs-modules/mailer";
 import { Options, render } from "@react-email/render";
-import { getModuleExport, load } from "locter";
+import type { ComponentType } from "react";
+
+type TemplateComponent = ComponentType<Record<string, unknown>>;
+
+function isEsModule(mod: unknown): mod is { default: unknown } {
+  return typeof mod === "object" && mod !== null && "__esModule" in mod;
+}
+
+function isRequireEsmError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return false;
+  }
+  return (
+    error.code === "ERR_REQUIRE_ESM" ||
+    error.code === "ERR_REQUIRE_ASYNC_MODULE"
+  );
+}
+
+async function loadTemplate(file: string): Promise<TemplateComponent> {
+  // createRequire rejects a relative path, so resolve against process.cwd() first, as 0.2.5 did implicitly.
+  const absolute = path.resolve(file);
+  try {
+    const mod: unknown = createRequire(absolute)(absolute);
+    return (isEsModule(mod) ? mod.default : mod) as TemplateComponent;
+  } catch (error) {
+    if (!isRequireEsmError(error)) {
+      throw error;
+    }
+    const ns = (await import(pathToFileURL(absolute).href)) as {
+      default: TemplateComponent;
+    };
+    return ns.default;
+  }
+}
 
 export class ReactAdapter implements TemplateAdapter {
   private config: Options = {
@@ -21,20 +55,11 @@ export class ReactAdapter implements TemplateAdapter {
     const templateName = path.basename(template, templateExt);
     const templateDir = path.isAbsolute(template)
       ? path.dirname(template)
-      : path.join(options.template.dir, path.dirname(template));
+      : path.join(options.template!.dir!, path.dirname(template));
     const templatePath = path.join(templateDir, templateName + templateExt);
-    const templatePathFileURL = pathToFileURL(templatePath).href;
 
-    load(templatePathFileURL)
-      .then((tmplModule) => {
-        const moduleDefault = getModuleExport(
-          tmplModule,
-          (key) => key === "default"
-        );
-        const Comp = moduleDefault.value;
-
-        return render(<Comp {...context} />, this.config);
-      })
+    loadTemplate(templatePath)
+      .then((Comp) => render(<Comp {...context} />, this.config))
       .then((html) => {
         mail.data.html = html;
         return callback();
