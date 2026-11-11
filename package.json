@@ -33,7 +33,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "verify:build": "node scripts/verify-build.mjs",
-    "prepack": "npm run build && npm run verify:build && npm test",
+    "verify:types": "node scripts/verify-types.mjs",
+    "prepack": "npm run build && npm run verify:build && npm run verify:types && npm test",
     "prepublishOnly": "npm run lint && npm run format:check && npm run typecheck"
   },
   "publishConfig": {
