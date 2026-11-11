@@ -204,6 +204,29 @@ for (const entry of entries) {
       );
     }
 
+    // An opt-out inherited from Object.prototype must not enable it; the property is always removed again.
+    const inheritedKey = "unsafeAllowOutsideTemplateDir";
+    Reflect.defineProperty(Object.prototype, inheritedKey, {
+      value: true,
+      configurable: true,
+    });
+    let inherited;
+    try {
+      inherited = await compileOnce(ReactAdapter, absolute, { template: null });
+    } finally {
+      Reflect.deleteProperty(Object.prototype, inheritedKey);
+    }
+    const [inheritedError] = inherited.calls;
+    if (
+      inherited.calls.length !== 1 ||
+      !(inheritedError instanceof ReactAdapterError) ||
+      inheritedError.code !== "ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT"
+    ) {
+      fail(
+        `${where}: an opt-out inherited from Object.prototype expected TEMPLATE_OUTSIDE_ROOT, got ${describe(inheritedError)}`
+      );
+    }
+
     const allowed = await compileOnce(ReactAdapter, absolute, {
       template: null,
       adapterOptions: { unsafeAllowOutsideTemplateDir: true },

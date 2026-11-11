@@ -608,6 +608,29 @@ describe("unsafeAllowOutsideTemplateDir (D-11, D-12, D-13, D-19)", () => {
     }
   });
 
+  test("an unsafeAllowOutsideTemplateDir inherited from Object.prototype does not enable it, with no argument or with {} (D-12)", async () => {
+    const key = "unsafeAllowOutsideTemplateDir";
+    expect(
+      Reflect.defineProperty(Object.prototype, key, {
+        value: true,
+        configurable: true,
+        writable: true,
+        enumerable: false,
+      })
+    ).toBe(true);
+    try {
+      for (const adapter of [new ReactAdapter(), new ReactAdapter({})]) {
+        expectAdapterError(
+          await compileTemplate("../out/secret", options(at("root")), adapter),
+          OUTSIDE
+        );
+      }
+    } finally {
+      Reflect.deleteProperty(Object.prototype, key);
+      expect(Reflect.has(Object.prototype, key)).toBe(false);
+    }
+  });
+
   test("constructing with the opt-out and rendering outside a root never warns or logs (D-13)", async () => {
     const spies = [
       vi.spyOn(process, "emitWarning").mockImplementation(() => undefined),

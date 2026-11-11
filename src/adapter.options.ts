@@ -66,6 +66,7 @@ function warnPlainTextDeprecated(): void {
 export function resolveSettings(
   options: ReactAdapterOptions | undefined
 ): ResolvedSettings {
+  const source: ReactAdapterOptions = isOptionsObject(options) ? options : {};
   const {
     pretty,
     text,
@@ -74,7 +75,7 @@ export function resolveSettings(
     unstableTextConversion,
     unsafeAllowOutsideTemplateDir,
     ...renderOptions
-  }: ReactAdapterOptions = isOptionsObject(options) ? options : {};
+  } = source;
 
   // The key being present is enough, whether it holds true or false (D-26).
   if (plainText !== undefined) {
@@ -89,8 +90,11 @@ export function resolveSettings(
       ? { ...htmlToTextOptions }
       : undefined,
     unstableTextConversion: unstableTextConversion === true,
-    // Strict: only the literal true counts, and only the constructor argument is ever read.
-    unsafeAllowOutsideTemplateDir: unsafeAllowOutsideTemplateDir === true,
+    // Strict: only the literal true counts, and only as an own property of the constructor argument.
+    // A value inherited through the prototype chain (a polluted Object.prototype) never enables it.
+    unsafeAllowOutsideTemplateDir:
+      Object.hasOwn(source, "unsafeAllowOutsideTemplateDir") &&
+      unsafeAllowOutsideTemplateDir === true,
     renderOptions,
   };
 }
