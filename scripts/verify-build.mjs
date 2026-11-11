@@ -19,6 +19,9 @@ function fail(message) {
   process.exit(1);
 }
 
+// Thrown instead of calling fail() where a `finally` has to run first: process.exit() skips it.
+class CheckFailure extends Error {}
+
 function leaves(value) {
   if (typeof value === "string") return [value];
   return Object.values(value ?? {}).flatMap(leaves);
@@ -150,7 +153,12 @@ for (const entry of entries) {
     const dir = mkdtempSync(
       path.join(os.tmpdir(), "react-adapter-esm-throws-")
     );
+    let problem;
     try {
+      // Inside this try a failed check throws, so the temp directory is removed before the process exits.
+      const fail = (message) => {
+        throw new CheckFailure(message);
+      };
       const copy = path.join(dir, "esm-throws.mjs");
       copyFileSync(path.join(fixturesDir, "esm-throws.mjs"), copy);
       delete globalThis.__reactAdapterEsmThrows;
@@ -200,10 +208,16 @@ for (const entry of entries) {
           `${where}: the second send evaluated the module again (counter ${afterFirst} -> ${evaluations()})`
         );
       }
+    } catch (error) {
+      problem =
+        error instanceof CheckFailure
+          ? error.message
+          : `${where}: unexpected error: ${describe(error)}`;
     } finally {
       delete globalThis.__reactAdapterEsmThrows;
       rmSync(dir, { recursive: true, force: true });
     }
+    if (problem !== undefined) fail(problem);
   }
 }
 
