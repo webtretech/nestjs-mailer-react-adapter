@@ -13,7 +13,7 @@ import {
   resolveSettings,
 } from "./adapter.options";
 import { REACT_ADAPTER_ERROR_CODES, ReactAdapterError } from "./adapter.errors";
-import { messageTemplateName } from "./template.confine";
+import { quotedTemplateName } from "./template.confine";
 import { describeExport, isRenderable, loadTemplate } from "./template.loader";
 import { locateTemplate } from "./template.lookup";
 
@@ -39,7 +39,7 @@ export class ReactAdapter implements TemplateAdapter {
     if (!isRenderable(value)) {
       throw new ReactAdapterError(
         REACT_ADAPTER_ERROR_CODES.INVALID_EXPORT,
-        `Template "${messageTemplateName(template)}" does not default-export a React component; found ${describeExport(value, exportNames)}.`,
+        `Template ${quotedTemplateName(template)} does not default-export a React component; found ${describeExport(value, exportNames)}.`,
         { template, path: file }
       );
     }
@@ -52,7 +52,7 @@ export class ReactAdapter implements TemplateAdapter {
       // The message names the template but not the cause: a render error can carry context values.
       throw new ReactAdapterError(
         REACT_ADAPTER_ERROR_CODES.RENDER_FAILED,
-        `Template "${messageTemplateName(template)}" threw while rendering; the component's error is in cause.`,
+        `Template ${quotedTemplateName(template)} threw while rendering; the component's error is in cause.`,
         { template, path: file, cause }
       );
     }
@@ -65,7 +65,7 @@ export class ReactAdapter implements TemplateAdapter {
       } catch (cause) {
         throw new ReactAdapterError(
           REACT_ADAPTER_ERROR_CODES.TEXT_FAILED,
-          `Template "${messageTemplateName(template)}" rendered, but its text part could not be built; the converter's error is in cause.`,
+          `Template ${quotedTemplateName(template)} rendered, but its text part could not be built; the converter's error is in cause.`,
           { template, path: file, cause }
         );
       }
@@ -77,7 +77,7 @@ export class ReactAdapter implements TemplateAdapter {
       } catch (cause) {
         throw new ReactAdapterError(
           REACT_ADAPTER_ERROR_CODES.RENDER_FAILED,
-          `Template "${messageTemplateName(template)}" rendered, but its HTML could not be formatted; the formatter's error is in cause.`,
+          `Template ${quotedTemplateName(template)} rendered, but its HTML could not be formatted; the formatter's error is in cause.`,
           { template, path: file, cause }
         );
       }

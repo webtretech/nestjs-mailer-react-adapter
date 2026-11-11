@@ -6,7 +6,7 @@ import { isValidElement } from "react";
 import type { ElementType } from "react";
 
 import { REACT_ADAPTER_ERROR_CODES, ReactAdapterError } from "./adapter.errors";
-import { isRecord, messageTemplateName } from "./template.confine";
+import { isRecord, quotedTemplateName } from "./template.confine";
 
 export interface LoadedTemplate {
   /** The picked default export, not yet checked. */
@@ -102,7 +102,7 @@ export async function loadTemplate(
           : String(error);
     throw new ReactAdapterError(
       REACT_ADAPTER_ERROR_CODES.TEMPLATE_LOAD_FAILED,
-      `Template "${messageTemplateName(template)}" failed to load: ${reason}. A CommonJS template is loaded again on the next send; a native ESM template that failed to load stays failed until the application restarts.`,
+      `Template ${quotedTemplateName(template)} failed to load: ${reason}. A CommonJS template is loaded again on the next send; a native ESM template that failed to load stays failed until the application restarts.`,
       { template, path: absolute, cause: error }
     );
   }

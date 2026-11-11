@@ -8,7 +8,7 @@ import {
   isNotHereError,
   isRecord,
   isUncNameAllowed,
-  messageTemplateName,
+  quotedTemplateName,
   resolveRealLocation,
   type NameVerdict,
 } from "./template.confine";
@@ -84,7 +84,7 @@ function loadFailed(
       : "unknown error";
   return new ReactAdapterError(
     REACT_ADAPTER_ERROR_CODES.TEMPLATE_LOAD_FAILED,
-    `Could not inspect a candidate file for template "${messageTemplateName(template)}" (${code}); see error.path and error.cause.`,
+    `Could not inspect a candidate file for template ${quotedTemplateName(template)} (${code}); see error.path and error.cause.`,
     { template, path: file, cause }
   );
 }
@@ -97,7 +97,7 @@ const INVALID_REASONS: Record<Exclude<NameVerdict, "ok">, string> = {
     "it is a Windows drive-letter or UNC path, which is accepted only on Windows",
 };
 
-// The message shows the name through messageTemplateName and JSON-escapes it, so an absolute name
+// The message shows the name through quotedTemplateName (messageTemplateName, JSON-escaped), so an absolute name
 // appears only by its last segment and a NUL byte appears as \u0000.
 function invalidTemplateName(
   template: string,
@@ -105,7 +105,7 @@ function invalidTemplateName(
 ): ReactAdapterError {
   return new ReactAdapterError(
     REACT_ADAPTER_ERROR_CODES.INVALID_TEMPLATE_NAME,
-    `Template name ${JSON.stringify(messageTemplateName(template))} is not allowed: ${reason}.`,
+    `Template name ${quotedTemplateName(template)} is not allowed: ${reason}.`,
     { template }
   );
 }
@@ -131,7 +131,7 @@ export async function locateTemplate(
   if (!path.isAbsolute(template) && directories.length === 0) {
     throw new ReactAdapterError(
       REACT_ADAPTER_ERROR_CODES.TEMPLATE_DIR_MISSING,
-      `Template "${messageTemplateName(template)}" is a relative name but template.dir (and template.dirs) is not set, so it cannot be resolved. Set template.dir in the mailer options.`,
+      `Template ${quotedTemplateName(template)} is a relative name but template.dir (and template.dirs) is not set, so it cannot be resolved. Set template.dir in the mailer options.`,
       { template }
     );
   }
@@ -142,7 +142,7 @@ export async function locateTemplate(
   ) {
     throw new ReactAdapterError(
       REACT_ADAPTER_ERROR_CODES.TEMPLATE_OUTSIDE_ROOT,
-      `Template "${messageTemplateName(template)}" is an absolute name, but no template.dir or template.dirs is configured, so it lies outside every template root. Set template.dir, or construct ReactAdapter with unsafeAllowOutsideTemplateDir: true.`,
+      `Template ${quotedTemplateName(template)} is an absolute name, but no template.dir or template.dirs is configured, so it lies outside every template root. Set template.dir, or construct ReactAdapter with unsafeAllowOutsideTemplateDir: true.`,
       { template, roots: [] }
     );
   }
@@ -179,13 +179,13 @@ export async function locateTemplate(
   if (firstOutside !== undefined) {
     throw new ReactAdapterError(
       REACT_ADAPTER_ERROR_CODES.TEMPLATE_OUTSIDE_ROOT,
-      `Template "${messageTemplateName(template)}" resolves outside the configured template roots (see error.roots), so it was not loaded. To allow it, construct ReactAdapter with unsafeAllowOutsideTemplateDir: true.`,
+      `Template ${quotedTemplateName(template)} resolves outside the configured template roots (see error.roots), so it was not loaded. To allow it, construct ReactAdapter with unsafeAllowOutsideTemplateDir: true.`,
       { template, path: firstOutside, roots }
     );
   }
   throw new ReactAdapterError(
     REACT_ADAPTER_ERROR_CODES.TEMPLATE_NOT_FOUND,
-    `Template "${messageTemplateName(template)}" was not found; searched ${candidates.length} ${candidates.length === 1 ? "location" : "locations"}, see error.searched.`,
+    `Template ${quotedTemplateName(template)} was not found; searched ${candidates.length} ${candidates.length === 1 ? "location" : "locations"}, see error.searched.`,
     { template, path: candidates[0], searched: candidates, roots }
   );
 }

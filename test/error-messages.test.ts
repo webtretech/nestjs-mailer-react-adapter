@@ -413,6 +413,45 @@ describe("error messages carry no absolute path", () => {
     }
   });
 
+  test("a newline, an escape character and a quote in a relative name appear as visible escapes in every lookup message and stay exact on error.template", async () => {
+    const hostile = 'mail\nline\u001b[31m"quoted"';
+    const sites = [
+      {
+        label: "TEMPLATE_DIR_MISSING",
+        code: REACT_ADAPTER_ERROR_CODES.TEMPLATE_DIR_MISSING,
+        name: hostile,
+        options: {} as MailerOptions,
+      },
+      {
+        label: "TEMPLATE_NOT_FOUND",
+        code: REACT_ADAPTER_ERROR_CODES.TEMPLATE_NOT_FOUND,
+        name: hostile,
+        options: inRoot(),
+      },
+      {
+        label: "TEMPLATE_OUTSIDE_ROOT",
+        code: REACT_ADAPTER_ERROR_CODES.TEMPLATE_OUTSIDE_ROOT,
+        name: `../${hostile}`,
+        options: inRoot(),
+      },
+    ];
+    for (const { label, code, name, options } of sites) {
+      const error = expectAdapterError(
+        await compileTemplate(name, options),
+        code
+      );
+      expect(error.message, `${label}: raw newline`).not.toContain("\n");
+      expect(error.message, `${label}: raw ESC`).not.toContain("\u001b");
+      expect(error.message, `${label}: quoted whole`).toContain(
+        JSON.stringify(name)
+      );
+      expect(error.message, `${label}: \\n escape`).toContain("\\n");
+      expect(error.message, `${label}: ESC escape`).toContain("\\u001b");
+      expect(error.message, `${label}: quote escape`).toContain('\\"quoted\\"');
+      expect(error.template, label).toBe(name);
+    }
+  });
+
   test("a pretty formatter failure fails once as RENDER_FAILED and writes no html (TEST-01)", async () => {
     prettyFailsOnce();
     const outcome = await compileTemplate(
