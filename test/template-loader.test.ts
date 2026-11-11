@@ -234,6 +234,29 @@ module.exports = function Template() { return "never"; };
     expect(error.message).toContain("plain string failure");
     expect(error.cause).toBe("plain string failure");
   });
+
+  // The one place a message can carry an absolute path: text thrown by the template or its dependencies is
+  // quoted as given (D-21), so a path inside that text is quoted too. Coded Node errors never reach it.
+  test("template-loader: an uncoded Error whose text carries an absolute path is quoted, the D-21 exception to the no-path rule", async () => {
+    await write(
+      "throws-path-text.js",
+      `throw new Error("bad config in " + __filename);\n`
+    );
+    const outcome = await send("throws-path-text");
+    const error = expectAdapterError(
+      outcome,
+      "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED"
+    );
+    expect(error.cause).toBeInstanceOf(Error);
+    if (error.cause instanceof Error) {
+      const quoted = error.cause.message;
+      expect(quoted.startsWith("bad config in ")).toBe(true);
+      expect(path.isAbsolute(quoted.slice("bad config in ".length))).toBe(true);
+      expect(error.message).toContain(quoted);
+    }
+    expect(error.message).not.toContain("the underlying error is in cause");
+    expect(outcome.html).toBeUndefined();
+  });
 });
 
 describe("template-loader: render failures", () => {

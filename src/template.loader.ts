@@ -91,6 +91,8 @@ export async function loadTemplate(
   } catch (error) {
     // D-21: a cause with a string code shows only the code (Node's own messages embed absolute paths and
     // require stacks); any other cause is quoted. The whole cause stays on error.cause.
+    // Exception to the no-path rule: text thrown by the template or its dependencies is quoted as given and
+    // may carry an absolute path (for example `new Error("bad config in " + __dirname)`); coded Node errors never do.
     const code = isRecord(error) ? error["code"] : undefined;
     const reason =
       typeof code === "string"
