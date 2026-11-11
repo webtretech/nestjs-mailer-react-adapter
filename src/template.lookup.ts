@@ -2,6 +2,11 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 
 import { REACT_ADAPTER_ERROR_CODES, ReactAdapterError } from "./adapter.errors";
+import {
+  classifyTemplateName,
+  messageTemplateName,
+  type NameVerdict,
+} from "./template.confine";
 
 export const KNOWN_EXTENSIONS = [".js", ".cjs", ".mjs"] as const;
 
@@ -73,10 +78,35 @@ async function isFile(file: string, template: string): Promise<boolean> {
   }
 }
 
+const INVALID_REASONS: Record<Exclude<NameVerdict, "ok">, string> = {
+  "nul-byte": "it contains a NUL byte",
+  "url-scheme": "it starts with a URL scheme",
+  "windows-device": "it is a Windows device or verbatim path",
+  "windows-drive-or-unc":
+    "it is a Windows drive-letter or UNC path, which is accepted only on Windows",
+};
+
+// The message shows the name through messageTemplateName and JSON-escapes it, so an absolute name
+// appears only by its last segment and a NUL byte appears as \u0000.
+function invalidTemplateName(
+  template: string,
+  reason: string
+): ReactAdapterError {
+  return new ReactAdapterError(
+    REACT_ADAPTER_ERROR_CODES.INVALID_TEMPLATE_NAME,
+    `Template name ${JSON.stringify(messageTemplateName(template))} is not allowed: ${reason}.`,
+    { template }
+  );
+}
+
 export async function locateTemplate(
   template: string,
   templateOptions: unknown
 ): Promise<string> {
+  const verdict = classifyTemplateName(template);
+  if (verdict !== "ok") {
+    throw invalidTemplateName(template, INVALID_REASONS[verdict]);
+  }
   const directories = templateDirectories(templateOptions);
   if (!path.isAbsolute(template) && directories.length === 0) {
     throw new ReactAdapterError(

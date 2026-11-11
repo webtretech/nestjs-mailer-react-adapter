@@ -369,11 +369,11 @@ describe("names, codes and failures", () => {
 
   test("every published code is an exact ASCII ERR_REACT_ADAPTER_ string", () => {
     const codes = Object.values(REACT_ADAPTER_ERROR_CODES);
-    expect(codes).toHaveLength(8);
+    expect(codes).toHaveLength(10);
     for (const code of codes) {
       expect(code).toMatch(/^ERR_REACT_ADAPTER_[A-Z_]+$/);
     }
-    expect(new Set(codes).size).toBe(8);
+    expect(new Set(codes).size).toBe(10);
   });
 
   test("a stat failure other than not-here is TEMPLATE_LOAD_FAILED with the cause", async () => {

@@ -7,6 +7,8 @@ export const REACT_ADAPTER_ERROR_CODES = {
   TEXT_FAILED: "ERR_REACT_ADAPTER_TEXT_FAILED",
   NO_BODY: "ERR_REACT_ADAPTER_NO_BODY",
   INVALID_MAIL: "ERR_REACT_ADAPTER_INVALID_MAIL",
+  INVALID_TEMPLATE_NAME: "ERR_REACT_ADAPTER_INVALID_TEMPLATE_NAME",
+  TEMPLATE_OUTSIDE_ROOT: "ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT",
 } as const;
 
 export type ReactAdapterErrorCode =
@@ -17,6 +19,7 @@ export class ReactAdapterError extends Error {
   readonly template: string | undefined;
   readonly path: string | undefined;
   readonly searched: readonly string[] | undefined;
+  readonly roots: readonly string[] | undefined;
 
   constructor(
     code: ReactAdapterErrorCode,
@@ -25,6 +28,7 @@ export class ReactAdapterError extends Error {
       template?: string;
       path?: string;
       searched?: readonly string[];
+      roots?: readonly string[];
       cause?: unknown;
     } = {}
   ) {
@@ -35,5 +39,6 @@ export class ReactAdapterError extends Error {
     this.template = init.template;
     this.path = init.path;
     this.searched = init.searched;
+    this.roots = init.roots;
   }
 }
