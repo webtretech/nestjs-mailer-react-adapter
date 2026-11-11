@@ -323,3 +323,52 @@ describe("template-loader: errors are raised once and never wrapped again", () =
     expect(error.cause).toBeUndefined();
   });
 });
+
+// A stand-in for the adapter: the helper only calls compile().
+function fakeAdapter(
+  compile: (mail: unknown, callback: () => void) => void
+): ReactAdapter {
+  return { compile } as unknown as ReactAdapter;
+}
+
+describe("test helper compileOnce", () => {
+  test("a synchronous throw of undefined is recorded as a throw", async () => {
+    const outcome = await compileOnce(
+      fakeAdapter(() => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw undefined;
+      }),
+      { data: {} },
+      {}
+    );
+    expect(outcome.didThrow).toBe(true);
+    expect(outcome.threw).toBeInstanceOf(Error);
+    expect(outcome.calls).toBe(0);
+  });
+
+  test("a callback that runs after compile() returns is counted once and not early", async () => {
+    const outcome = await compileOnce(
+      fakeAdapter((_mail, callback) => {
+        queueMicrotask(callback);
+      }),
+      { data: {} },
+      {}
+    );
+    expect(outcome.didThrow).toBe(false);
+    expect(outcome.threw).toBeUndefined();
+    expect(outcome.calls).toBe(1);
+    expect(outcome.early).toBe(false);
+  });
+
+  test("a second callback inside the window is counted", async () => {
+    const outcome = await compileOnce(
+      fakeAdapter((_mail, callback) => {
+        queueMicrotask(callback);
+        setTimeout(callback, 10);
+      }),
+      { data: {} },
+      {}
+    );
+    expect(outcome.calls).toBe(2);
+  });
+});

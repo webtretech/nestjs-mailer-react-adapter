@@ -1,5 +1,5 @@
+import fs from "node:fs/promises";
 import { createRequire } from "node:module";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,7 +7,7 @@ import type { MailerOptions } from "@nestjs-modules/mailer";
 import { describe, expect, test } from "vitest";
 
 import { ReactAdapter, ReactAdapterError } from "../src";
-import { compileTemplate, expectAdapterError } from "./helpers";
+import { compileTemplate, expectAdapterError, makeTempRoot } from "./helpers";
 
 const FIXTURES = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -83,20 +83,26 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
   });
 
   test("characterization: an absolute path outside template.dir renders only with unsafeAllowOutsideTemplateDir (changed in 0.3.0)", async () => {
-    await expectRender(
-      path.join(FIXTURES, "tsc-cjs.js"),
-      "tsc-cjs",
-      mailerOptions(os.tmpdir()),
-      new ReactAdapter({ unsafeAllowOutsideTemplateDir: true })
-    );
-    const refused = expectAdapterError(
-      await compileTemplate(
+    // A fresh temporary folder is the root, so the fixtures lie outside it wherever the repository is checked out.
+    const outsideRoot = await makeTempRoot("react-adapter-render-");
+    try {
+      await expectRender(
         path.join(FIXTURES, "tsc-cjs.js"),
-        mailerOptions(os.tmpdir())
-      ),
-      "ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT"
-    );
-    expect(refused.roots).toEqual([path.resolve(os.tmpdir())]);
+        "tsc-cjs",
+        mailerOptions(outsideRoot),
+        new ReactAdapter({ unsafeAllowOutsideTemplateDir: true })
+      );
+      const refused = expectAdapterError(
+        await compileTemplate(
+          path.join(FIXTURES, "tsc-cjs.js"),
+          mailerOptions(outsideRoot)
+        ),
+        "ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT"
+      );
+      expect(refused.roots).toEqual([path.resolve(outsideRoot)]);
+    } finally {
+      await fs.rm(outsideRoot, { recursive: true, force: true });
+    }
   });
 
   test("characterization: relative template.dir resolves against process.cwd()", async () => {

@@ -315,6 +315,13 @@ function buildCases(): Case[] {
   ];
 }
 
+// A working directory that is a filesystem root ("/" or "C:\") appears inside every message that holds a
+// separator, so it cannot be a forbidden text; every other entry stays as strict as it is.
+function cwdForbidden(): [string, string][] {
+  const cwd = process.cwd();
+  return cwd === path.parse(cwd).root ? [] : [["process.cwd()", cwd]];
+}
+
 // The paths a message must never show, as created and as resolved (D-26: nothing is removed first).
 function forbiddenTexts(): [string, string][] {
   return [
@@ -326,7 +333,7 @@ function forbiddenTexts(): [string, string][] {
     ],
     ["os.tmpdir()", os.tmpdir()],
     ["the real path of os.tmpdir()", realTmp],
-    ["process.cwd()", process.cwd()],
+    ...cwdForbidden(),
     ["the fixtures directory", FIXTURES],
     ["a require stack", "Require stack"],
   ];

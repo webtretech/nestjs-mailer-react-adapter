@@ -13,8 +13,10 @@ export interface Outcome {
   args: unknown[];
   /** How many times the callback ran by the time the outcome settled. */
   calls: number;
-  /** What compile() threw synchronously, if anything. */
+  /** What compile() threw synchronously, if anything. A thrown `undefined` shows as a marker Error, never as undefined. */
   threw: unknown;
+  /** True when compile() threw synchronously, whatever it threw. */
+  didThrow: boolean;
   /** True when the callback ran before compile() returned. */
   early: boolean;
   /** mail.data.html once the outcome settled. */
@@ -33,6 +35,8 @@ function readHtml(mail: unknown): unknown {
 }
 
 // Resolves 50 ms after the first callback so a second call is counted, or after 2000 ms when none arrives.
+// A callback that arrives after the outcome settled throws instead of being ignored: the throw surfaces as an
+// unhandled rejection, which fails the test run, so a late second call cannot pass unnoticed.
 export async function compileOnce(
   adapter: ReactAdapter,
   mail: unknown,
@@ -44,14 +48,29 @@ export async function compileOnce(
     let returned = false;
     let early = false;
     let threw: unknown;
+    let didThrow = false;
+    let settled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const finish = (): void => {
-      resolve({ args: first, calls, threw, early, html: readHtml(mail) });
+      settled = true;
+      resolve({
+        args: first,
+        calls,
+        threw,
+        didThrow,
+        early,
+        html: readHtml(mail),
+      });
     };
     try {
       adapter.compile(
         mail,
         (...args: unknown[]) => {
+          if (settled) {
+            throw new Error(
+              "compile() called its callback again after the outcome settled"
+            );
+          }
           calls += 1;
           if (!returned) {
             early = true;
@@ -65,10 +84,12 @@ export async function compileOnce(
         options
       );
     } catch (error) {
-      threw = error;
+      didThrow = true;
+      threw =
+        error === undefined ? new Error("compile() threw undefined") : error;
     }
     returned = true;
-    if (threw !== undefined) {
+    if (didThrow) {
       setTimeout(finish, 50);
     } else if (calls === 0) {
       timer = setTimeout(finish, 2000);
@@ -94,6 +115,7 @@ export function expectAdapterError(
   code: ReactAdapterErrorCode
 ): ReactAdapterError {
   expect(outcome.calls).toBe(1);
+  expect(outcome.didThrow).toBe(false);
   expect(outcome.threw).toBeUndefined();
   expect(outcome.early).toBe(false);
   expect(outcome.args).toHaveLength(1);
@@ -131,6 +153,20 @@ function errorCode(error: unknown): string | undefined {
   return undefined;
 }
 
+let linkSkipNoted = false;
+
+// Outside CI the symlink tests skip when links cannot be created. The skip reason is easy to miss in the
+// reporter output, so print one line per test file (stderr is shown with the file's results; no console call).
+function noteSkippedLinks(reason: string): void {
+  if (linkSkipNoted) {
+    return;
+  }
+  linkSkipNoted = true;
+  process.stderr.write(
+    `NOTE: symlinks cannot be created on this host (${reason}); the symlink tests are skipped here and fail in CI.\n`
+  );
+}
+
 // Creates a symlink with an absolute target. A directory link on Windows falls back to a junction.
 // When a link cannot be created, CI fails loudly (no symlink test may pass vacuously); elsewhere it
 // returns false so the caller can skip with a visible note.
@@ -161,6 +197,7 @@ export async function makeLink(
         { cause: error }
       );
     }
+    noteSkippedLinks(errorCode(error) ?? String(error));
     return false;
   }
   expect((await fs.lstat(link)).isSymbolicLink()).toBe(true);
