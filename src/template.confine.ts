@@ -169,7 +169,8 @@ export function messageTemplateName(name: string): string {
 
 // The name quoted for an error message: messageTemplateName, JSON-escaped, so a newline, an ANSI escape or an
 // embedded quote in a relative name appears as a visible escape (\n, \u001b, \") rather than as a raw character
-// in a log. An ordinary name such as welcome reads "welcome", with its own quotes. Internal: not exported from index.
+// in a log. An ordinary name such as welcome reads "welcome", with its own quotes. A backslash shows doubled
+// (sub\welcome reads "sub\\welcome") by design. Internal: not exported from index.
 export function quotedTemplateName(name: string): string {
   return JSON.stringify(messageTemplateName(name));
 }

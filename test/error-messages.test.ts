@@ -459,6 +459,36 @@ describe("error messages carry no absolute path", () => {
     }
   });
 
+  test("a not-found message for an ordinary name reads as before and shows a backslash in a relative name doubled", async () => {
+    // A fresh empty root: the shared one holds welcome.js.
+    const empty = await makeTempRoot(PREFIX);
+    try {
+      const options: MailerOptions = { template: { dir: empty } };
+      const plain = expectAdapterError(
+        await compileTemplate("welcome", options),
+        REACT_ADAPTER_ERROR_CODES.TEMPLATE_NOT_FOUND
+      );
+      expect(plain.message).toBe(
+        'Template "welcome" was not found; searched 3 locations, see error.searched.'
+      );
+      expect(plain.template).toBe("welcome");
+      // On POSIX the backslash is part of the file name; on Windows it is a separator. Either way the name is
+      // relative, resolves inside the root and is not there, so the code is TEMPLATE_NOT_FOUND on both.
+      const name = "sub\\welcome";
+      const backslash = expectAdapterError(
+        await compileTemplate(name, options),
+        REACT_ADAPTER_ERROR_CODES.TEMPLATE_NOT_FOUND
+      );
+      // JSON-escaped: the one backslash in the name shows as two.
+      expect(backslash.message).toBe(
+        'Template "sub\\\\welcome" was not found; searched 3 locations, see error.searched.'
+      );
+      expect(backslash.template).toBe(name);
+    } finally {
+      await fs.rm(empty, { recursive: true, force: true });
+    }
+  });
+
   test("a pretty formatter failure fails once as RENDER_FAILED and writes no html (TEST-01)", async () => {
     prettyFailsOnce();
     const outcome = await compileTemplate(
