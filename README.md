@@ -137,6 +137,7 @@ export default function Welcome({ name, code }: Props) {
   );
 }
 ```
+Templates are loaded once per process and cached by Node, so changes to a template file take effect after the application restarts.
 
 ## Examples
 
