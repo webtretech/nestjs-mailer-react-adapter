@@ -43,6 +43,21 @@ function isConfigObject(value: unknown): value is HtmlToTextConfig {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+let plainTextWarned = false;
+
+// Once per process. Node applies --no-deprecation and --throw-deprecation itself; under
+// --throw-deprecation the error is raised after this function has returned.
+function warnPlainTextDeprecated(): void {
+  if (plainTextWarned) {
+    return;
+  }
+  plainTextWarned = true;
+  process.emitWarning(
+    "The ReactAdapter option plainText is deprecated; use text instead. plainText: true now keeps HTML in mail.data.html and fills mail.data.text.",
+    { type: "DeprecationWarning", code: "REACT_ADAPTER_DEP0001" }
+  );
+}
+
 /** Splits the constructor options into the adapter's own settings and the keys for render(). */
 export function resolveSettings(
   options: ReactAdapterOptions | undefined
@@ -55,6 +70,11 @@ export function resolveSettings(
     unstableTextConversion,
     ...renderOptions
   }: ReactAdapterOptions = isOptionsObject(options) ? options : {};
+
+  // The key being present is enough, whether it holds true or false (D-26).
+  if (plainText !== undefined) {
+    warnPlainTextDeprecated();
+  }
 
   return {
     pretty: pretty === true,
