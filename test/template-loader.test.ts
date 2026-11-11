@@ -159,6 +159,81 @@ module.exports = function Template() { return "never"; };
       Reflect.deleteProperty(globalThis, key);
     }
   });
+
+  test("template-loader: a missing dependency fails as TEMPLATE_LOAD_FAILED naming MODULE_NOT_FOUND and no path (D-21)", async () => {
+    const file = await write(
+      "needs-missing-dependency.js",
+      `require("./definitely-missing-dependency");\nmodule.exports = function Template() { return "never"; };\n`
+    );
+    const outcome = await send("needs-missing-dependency");
+    const error = expectAdapterError(
+      outcome,
+      "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED"
+    );
+    expect(error.message).toContain("MODULE_NOT_FOUND");
+    expect(error.message).toContain("restart");
+    expect(error.message).not.toContain(dir);
+    expect(error.message).not.toContain("Require stack");
+    expect(error.cause).toMatchObject({ code: "MODULE_NOT_FOUND" });
+    expect(error.path).toBe(file);
+    expect(outcome.html).toBeUndefined();
+  });
+
+  test("template-loader: a syntax error's own message is quoted (D-21)", async () => {
+    await write("syntax-quoted.js", "module.exports = (\n");
+    const outcome = await send("syntax-quoted");
+    const error = expectAdapterError(
+      outcome,
+      "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED"
+    );
+    expect(error.cause).toBeInstanceOf(SyntaxError);
+    if (error.cause instanceof Error) {
+      expect(error.cause.message).not.toBe("");
+      expect(error.message).toContain(error.cause.message);
+    }
+    expect(error.message).not.toContain(dir);
+  });
+
+  test("template-loader: an error thrown at load without a code is quoted (D-21)", async () => {
+    await write("throws-own-boom.js", `throw new Error("own boom");\n`);
+    const outcome = await send("throws-own-boom");
+    const error = expectAdapterError(
+      outcome,
+      "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED"
+    );
+    expect(error.message).toContain("own boom");
+    expect(error.message).not.toContain(dir);
+  });
+
+  test("template-loader: a thrown error with a string code shows only the code (D-21)", async () => {
+    await write(
+      "throws-coded.js",
+      `const failure = new Error("secret text");\nfailure.code = "E_TEMPLATE";\nthrow failure;\n`
+    );
+    const outcome = await send("throws-coded");
+    const error = expectAdapterError(
+      outcome,
+      "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED"
+    );
+    expect(error.message).toContain("E_TEMPLATE");
+    expect(error.message).toContain("the underlying error is in cause");
+    expect(error.message).not.toContain("secret text");
+    expect(error.cause).toMatchObject({
+      code: "E_TEMPLATE",
+      message: "secret text",
+    });
+  });
+
+  test("template-loader: a non-Error value thrown at load is quoted (D-21)", async () => {
+    await write("throws-string.js", `throw "plain string failure";\n`);
+    const outcome = await send("throws-string");
+    const error = expectAdapterError(
+      outcome,
+      "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED"
+    );
+    expect(error.message).toContain("plain string failure");
+    expect(error.cause).toBe("plain string failure");
+  });
 });
 
 describe("template-loader: render failures", () => {

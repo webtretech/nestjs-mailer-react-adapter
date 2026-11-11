@@ -6,6 +6,7 @@ import { isValidElement } from "react";
 import type { ElementType } from "react";
 
 import { REACT_ADAPTER_ERROR_CODES, ReactAdapterError } from "./adapter.errors";
+import { isRecord, messageTemplateName } from "./template.confine";
 
 export interface LoadedTemplate {
   /** The picked default export, not yet checked. */
@@ -88,10 +89,18 @@ export async function loadTemplate(
   try {
     return await importOrRequire(absolute);
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
+    // D-21: a cause with a string code shows only the code (Node's own messages embed absolute paths and
+    // require stacks); any other cause is quoted. The whole cause stays on error.cause.
+    const code = isRecord(error) ? error["code"] : undefined;
+    const reason =
+      typeof code === "string"
+        ? `the error code is ${code}; the underlying error is in cause`
+        : error instanceof Error
+          ? error.message
+          : String(error);
     throw new ReactAdapterError(
       REACT_ADAPTER_ERROR_CODES.TEMPLATE_LOAD_FAILED,
-      `Template "${template}" (${absolute}) failed to load: ${reason}. A CommonJS template is loaded again on the next send; a native ESM template that failed to load stays failed until the application restarts.`,
+      `Template "${messageTemplateName(template)}" failed to load: ${reason}. A CommonJS template is loaded again on the next send; a native ESM template that failed to load stays failed until the application restarts.`,
       { template, path: absolute, cause: error }
     );
   }
