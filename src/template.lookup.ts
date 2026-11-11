@@ -16,12 +16,26 @@ function isNotHereError(error: unknown): boolean {
   return error.code === "ENOENT" || error.code === "ENOTDIR";
 }
 
-function templateDirectories(templateOptions: unknown): string[] {
+// template.dir first, then each template.dirs entry in array order, as the mailer's own adapters search them.
+// Anything that is not a non-empty string contributes nothing; no mailer-version detection happens here.
+export function templateDirectories(templateOptions: unknown): string[] {
   if (!isRecord(templateOptions)) {
     return [];
   }
-  const { dir } = templateOptions;
-  return typeof dir === "string" && dir !== "" ? [dir] : [];
+  const { dir, dirs } = templateOptions;
+  const directories: string[] = [];
+  if (typeof dir === "string" && dir !== "") {
+    directories.push(dir);
+  }
+  if (Array.isArray(dirs)) {
+    const entries: unknown[] = dirs;
+    for (const entry of entries) {
+      if (typeof entry === "string" && entry !== "") {
+        directories.push(entry);
+      }
+    }
+  }
+  return directories;
 }
 
 export function candidateFiles(
@@ -34,12 +48,14 @@ export function candidateFiles(
   const names = hasKnownExtension
     ? [template]
     : KNOWN_EXTENSIONS.map((extension) => template + extension);
-  if (path.isAbsolute(template)) {
-    return names.map((name) => path.normalize(name));
-  }
-  return directories.flatMap((directory) =>
-    names.map((name) => path.resolve(directory, name))
-  );
+  // An absolute name ignores every directory; a relative one is tried in each directory in turn,
+  // all extensions in one directory before the next. A path already listed keeps its first position.
+  const files = path.isAbsolute(template)
+    ? names.map((name) => path.normalize(name))
+    : directories.flatMap((directory) =>
+        names.map((name) => path.resolve(directory, name))
+      );
+  return [...new Set(files)];
 }
 
 async function isFile(file: string, template: string): Promise<boolean> {
