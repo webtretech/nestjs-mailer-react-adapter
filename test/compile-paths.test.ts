@@ -67,6 +67,184 @@ function parseRows(markdown: string): { rows: Row[]; problems: string[] } {
   return { rows, problems };
 }
 
+// The checks below read test sources as text. They first blank everything that is not code (comments and the
+// bodies of string, template and regular-expression literals) so that a title or a label that only sits in a
+// comment or in another string is never mistaken for a real call. The mask keeps every offset unchanged.
+const REGEX_PRECEDERS = "(,=:[!&|?{};";
+
+function maskNonCode(source: string): string {
+  const out = source.split("");
+  let i = 0;
+  let last = "";
+  const blank = (from: number, to: number): void => {
+    for (let k = from; k < Math.min(to, out.length); k++) {
+      if (out[k] !== "\n" && out[k] !== "\r") out[k] = " ";
+    }
+  };
+  const quoted = (quote: string): void => {
+    const start = i++;
+    while (i < source.length && source[i] !== quote) {
+      i += source[i] === "\\" ? 2 : 1;
+    }
+    blank(start + 1, i);
+    i++;
+  };
+  const regex = (): boolean => {
+    let k = i + 1;
+    let inClass = false;
+    while (k < source.length && source[k] !== "\n") {
+      if (source[k] === "\\") k++;
+      else if (source[k] === "[") inClass = true;
+      else if (source[k] === "]") inClass = false;
+      else if (source[k] === "/" && !inClass) {
+        blank(i + 1, k);
+        i = k + 1;
+        return true;
+      }
+      k++;
+    }
+    return false;
+  };
+  const template = (): void => {
+    i++;
+    let from = i;
+    while (i < source.length && source[i] !== "`") {
+      if (source[i] === "\\") {
+        i += 2;
+      } else if (source[i] === "$" && source[i + 1] === "{") {
+        blank(from, i);
+        i += 2;
+        code(true);
+        i++;
+        from = i;
+      } else {
+        i++;
+      }
+    }
+    blank(from, i);
+    i++;
+  };
+  const code = (stopAtBrace: boolean): void => {
+    let depth = 0;
+    while (i < source.length) {
+      const ch = source[i];
+      if (ch === "/" && source[i + 1] === "/") {
+        const start = i;
+        while (i < source.length && source[i] !== "\n") i++;
+        blank(start, i);
+      } else if (ch === "/" && source[i + 1] === "*") {
+        const end = source.indexOf("*/", i + 2);
+        const stop = end === -1 ? source.length : end + 2;
+        blank(i, stop);
+        i = stop;
+      } else if (ch === '"' || ch === "'") {
+        quoted(ch);
+        last = ch;
+      } else if (ch === "`") {
+        template();
+        last = ch;
+      } else if (
+        ch === "/" &&
+        (last === "" || REGEX_PRECEDERS.includes(last)) &&
+        regex()
+      ) {
+        last = "/";
+      } else {
+        if (ch === "{") depth++;
+        if (ch === "}") {
+          if (stopAtBrace && depth === 0) return;
+          depth--;
+        }
+        if (!/\s/.test(ch)) last = ch;
+        i++;
+      }
+    }
+  };
+  code(false);
+  return out.join("");
+}
+
+interface TestTitle {
+  raw: string;
+  quote: string;
+  live: boolean;
+}
+
+// Modifiers that take arguments before the title call: test.each(table)("title"), test.skipIf(cond)("title").
+const FACTORY_MODIFIERS = new Set(["each", "for", "skipIf", "runIf"]);
+
+function closeOfParen(masked: string, open: number): number {
+  let depth = 0;
+  for (let k = open; k < masked.length; k++) {
+    if (masked[k] === "(") depth++;
+    else if (masked[k] === ")" && --depth === 0) return k + 1;
+  }
+  return -1;
+}
+
+// The generic type arguments of test.each<[string, string]>(...); `=>` inside them does not close anything.
+function closeOfAngle(masked: string, open: number): number {
+  let depth = 0;
+  for (let k = open; k < masked.length; k++) {
+    if (masked[k] === "<") depth++;
+    else if (masked[k] === ">" && masked[k - 1] !== "=" && --depth === 0) {
+      return k + 1;
+    }
+  }
+  return -1;
+}
+
+// Every test(...) / it(...) call whose first argument is a plain string literal. `live` is false for
+// test.skip and test.todo; the conditional forms skipIf and runIf are real tests that run on one OS.
+function testTitles(source: string): TestTitle[] {
+  const masked = maskNonCode(source);
+  const titles: TestTitle[] = [];
+  for (const head of masked.matchAll(/(?<![\w$.])(?:test|it)(?![\w$])/g)) {
+    let pos = head.index + head[0].length;
+    let live = true;
+    for (;;) {
+      const modifier = /^\.([A-Za-z_$][\w$]*)/.exec(masked.slice(pos));
+      if (modifier === null) break;
+      pos += modifier[0].length;
+      if (modifier[1] === "skip" || modifier[1] === "todo") live = false;
+      if (FACTORY_MODIFIERS.has(modifier[1]) && masked[pos] === "<") {
+        pos = closeOfAngle(masked, pos);
+        if (pos < 0) break;
+      }
+      if (FACTORY_MODIFIERS.has(modifier[1]) && masked[pos] === "(") {
+        pos = closeOfParen(masked, pos);
+        if (pos < 0) break;
+      }
+    }
+    if (pos < 0) continue;
+    while (/\s/.test(masked[pos] ?? "")) pos++;
+    if (masked[pos] !== "(") continue;
+    pos++;
+    while (/\s/.test(masked[pos] ?? "")) pos++;
+    const quote = masked[pos];
+    if (quote !== '"' && quote !== "'" && quote !== "`") continue;
+    const close = masked.indexOf(quote, pos + 1);
+    if (close < 0 || masked.slice(pos + 1, close).trim() !== "") continue;
+    titles.push({ raw: source.slice(pos + 1, close), quote, live });
+  }
+  return titles;
+}
+
+// The static labels the script puts after `${entry.label} ` in its `where` strings.
+function scriptLabels(source: string): string[] {
+  const masked = maskNonCode(source);
+  const labels: string[] = [];
+  for (const head of masked.matchAll(/\bwhere\s*=\s*`/g)) {
+    const open = head.index + head[0].length - 1;
+    const close = masked.indexOf("`", open + 1);
+    if (close < 0) continue;
+    const raw = source.slice(open + 1, close);
+    const label = /^\$\{entry\.label\} ([^$`]+)$/.exec(raw);
+    if (label !== null) labels.push(label[1]);
+  }
+  return labels;
+}
+
 function validateMap(
   markdown: string,
   sources: ReadonlyMap<string, string>,
@@ -104,19 +282,23 @@ function validateMap(
     if (source === undefined) {
       problems.push(`${where}: the file ${row.file} does not exist`);
     } else if (row.file === SCRIPT_OWNER) {
-      if (!source.includes(row.test)) {
+      if (!scriptLabels(source).includes(row.test)) {
         problems.push(
           `${where}: ${row.file} has no check labelled ${row.test}`
         );
       }
     } else if (/^test\/[^/]+\.test\.ts$/.test(row.file)) {
-      const literals = [
-        JSON.stringify(row.test),
-        `'${row.test}'`,
-        `\`${row.test}\``,
-      ];
-      if (!literals.some((literal) => source.includes(literal))) {
+      const matching = testTitles(source).filter((title) =>
+        title.quote === '"'
+          ? title.raw === JSON.stringify(row.test).slice(1, -1)
+          : title.raw === row.test
+      );
+      if (matching.length === 0) {
         problems.push(`${where}: ${row.file} has no test titled "${row.test}"`);
+      } else if (!matching.some((title) => title.live)) {
+        problems.push(
+          `${where}: ${row.file} has "${row.test}" only on a skipped or todo test`
+        );
       }
     } else {
       problems.push(
@@ -276,6 +458,116 @@ describe("the compile() path list (TEST-01, D-15)", () => {
     expect(validateMap(header, sources, testFiles)).toContain(
       "the map has no rows"
     );
+  });
+
+  // One row for one cited title or label, checked against an in-memory source; the area rules are not under test.
+  function rowProblems(file: string, title: string, source: string): string[] {
+    const row = `| mail | one path | ${file} | ${title} |`;
+    const map = [HEADER, "| --- | --- | --- | --- |", row].join("\n");
+    return validateMap(map, new Map([[file, source]]), []).filter((problem) =>
+      problem.startsWith('row "one path"')
+    );
+  }
+  const code = (...lines: string[]): string => lines.join("\n");
+
+  test("a title that real test calls carry is accepted, including each, skipIf and runIf", () => {
+    const source = code(
+      'test("plain title", () => {});',
+      "it('single quoted', () => {});",
+      'test.each([1, 2])("each title %s", () => {});',
+      'test.each<[string, number]>([["a", 1]])("typed each %s", () => {});',
+      'test.skipIf(process.platform === "win32")("skipIf title", () => {});',
+      'it.runIf(isLinux())("runIf title", () => {});',
+      "test(",
+      '  "title on its own line",',
+      "  () => {}",
+      ");"
+    );
+    for (const title of [
+      "plain title",
+      "single quoted",
+      "each title %s",
+      "typed each %s",
+      "skipIf title",
+      "runIf title",
+      "title on its own line",
+    ]) {
+      expect(rowProblems("test/x.test.ts", title, source), title).toEqual([]);
+    }
+  });
+
+  test("a title that only appears in a comment is reported", () => {
+    for (const source of [
+      code(
+        '// test("only in a comment", () => {});',
+        'test("other", () => {});'
+      ),
+      code('/* test("only in a comment", () => {}); */'),
+      code("/*", '  it("only in a comment", () => {});', "*/"),
+    ]) {
+      const problems = rowProblems(
+        "test/x.test.ts",
+        "only in a comment",
+        source
+      );
+      expect(problems).toHaveLength(1);
+      expect(problems[0]).toContain('has no test titled "only in a comment"');
+    }
+  });
+
+  test("a title that only appears inside another string is reported", () => {
+    const source = code(
+      "const text = 'test(\"only in a string\", () => {})';",
+      'expect(text, "only in a string").toBeDefined();'
+    );
+    const problems = rowProblems("test/x.test.ts", "only in a string", source);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('has no test titled "only in a string"');
+  });
+
+  test("a title that only appears on a skipped or todo test is reported", () => {
+    for (const head of ["test.skip", "it.skip", "test.todo", "it.todo"]) {
+      const source = code(`${head}("only skipped", () => {});`);
+      const problems = rowProblems("test/x.test.ts", "only skipped", source);
+      expect(problems, head).toHaveLength(1);
+      expect(problems[0]).toContain("only on a skipped or todo test");
+    }
+    const alsoLive = code(
+      'test.skip("both", () => {});',
+      'test("both", () => {});'
+    );
+    expect(rowProblems("test/x.test.ts", "both", alsoLive)).toEqual([]);
+  });
+
+  test("a title that only appears on a describe is reported", () => {
+    for (const head of ["describe", "describe.each([1])", "describe.skip"]) {
+      const source = code(`${head}("only a suite", () => {});`);
+      const problems = rowProblems("test/x.test.ts", "only a suite", source);
+      expect(problems, head).toHaveLength(1);
+      expect(problems[0]).toContain('has no test titled "only a suite"');
+    }
+  });
+
+  test("a verify-build label counts only inside a where string", () => {
+    const where = (label: string): string =>
+      "const where = `$" + `{entry.label} ${label}\`;`;
+    expect(
+      rowProblems("scripts/verify-build.mjs", "escape", where("escape"))
+    ).toEqual([]);
+    for (const source of [
+      code("// escape", where("confinement")),
+      code('const label = "escape";', where("confinement")),
+      code("/* const where = `$" + "{entry.label} escape` */", where("other")),
+      code(where("escape-hatch")),
+    ]) {
+      const problems = rowProblems(
+        "scripts/verify-build.mjs",
+        "escape",
+        source
+      );
+      expect(problems).toHaveLength(1);
+      expect(problems[0]).toContain("has no check labelled escape");
+    }
   });
 
   test("CRLF line endings do not change the verdict", async () => {
