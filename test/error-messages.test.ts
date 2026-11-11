@@ -368,6 +368,24 @@ async function runCases(): Promise<
   return done;
 }
 
+function expectEscaped(
+  error: ReactAdapterError,
+  name: string,
+  shown: string,
+  label: string
+): void {
+  // The raw control characters and the raw quote form never appear; their JSON escapes do.
+  expect(error.message, `${label}: raw newline`).not.toContain("\n");
+  expect(error.message, `${label}: raw ESC`).not.toContain("\u001b");
+  expect(error.message, `${label}: raw NUL`).not.toContain("\u0000");
+  expect(error.message, `${label}: raw quoted word`).not.toContain('"q"');
+  expect(error.message, `${label}: quoted whole`).toContain(shown);
+  expect(error.message, `${label}: \\n escape`).toContain("\\n");
+  expect(error.message, `${label}: ESC escape`).toContain("\\u001b");
+  expect(error.message, `${label}: quote escape`).toContain('\\"q\\"');
+  expect(error.template, label).toBe(name);
+}
+
 describe("error messages carry no absolute path", () => {
   test("every published code is produced by at least one send and no message contains an absolute path (D-09, D-10, D-26)", async ({
     skip,
@@ -488,6 +506,138 @@ describe("error messages carry no absolute path", () => {
       await fs.rm(empty, { recursive: true, force: true });
     }
   });
+
+  test("a hostile name reaches the name-verdict and the no-root absolute message as visible escapes and stays exact on error.template", async () => {
+    const hostile = 'mail\nline\u001b[31m"q"';
+    const cases = [
+      {
+        label: "INVALID_TEMPLATE_NAME",
+        code: REACT_ADAPTER_ERROR_CODES.INVALID_TEMPLATE_NAME,
+        name: `nul\u0000${hostile}`,
+        options: inRoot(),
+        shown: JSON.stringify(`nul\u0000${hostile}`),
+      },
+      {
+        // An absolute name shows only its last segment (D-26); POSIX and Windows both treat /abs/... as absolute.
+        label: "absolute name with no template root",
+        code: REACT_ADAPTER_ERROR_CODES.TEMPLATE_OUTSIDE_ROOT,
+        name: `/abs/${hostile}`,
+        options: {} as MailerOptions,
+        shown: JSON.stringify(hostile),
+      },
+    ];
+    for (const { label, code, name, options, shown } of cases) {
+      const error = expectAdapterError(
+        await compileTemplate(name, options),
+        code
+      );
+      expectEscaped(error, name, shown, label);
+    }
+  });
+
+  // Windows cannot create a file whose name holds a newline or a double quote.
+  test.skipIf(process.platform === "win32")(
+    "a hostile file name shows as visible escapes in the loader, adapter and lookup-failure messages and stays exact on error.template",
+    async ({ skip }) => {
+      const dir = await makeTempRoot(PREFIX);
+      try {
+        const hostile = (kind: string): string => `${kind}\nx\u001b[31m"q"`;
+        const write = async (kind: string, source: string): Promise<string> => {
+          const name = hostile(kind);
+          await fs.writeFile(path.join(dir, `${name}.js`), source);
+          return name;
+        };
+        const options: MailerOptions = { template: { dir } };
+        const loadName = await write("load", `throw new Error("load boom");\n`);
+        const exportName = await write(
+          "export",
+          `module.exports = "not a component";\n`
+        );
+        const renderName = await write(
+          "render",
+          `module.exports = function Template() { throw new Error("render boom"); };\n`
+        );
+        const textName = hostile("text");
+        await writeTemplate(path.join(dir, `${textName}.js`), "text");
+        const prettyName = hostile("pretty");
+        await writeTemplate(path.join(dir, `${prettyName}.js`), "pretty");
+        const loopName = hostile("loop");
+        if (!(
+          (await makeLink(
+            path.join(dir, `${loopName}-b.js`),
+            path.join(dir, `${loopName}.js`),
+            "file"
+          )) &&
+          (await makeLink(
+            path.join(dir, `${loopName}.js`),
+            path.join(dir, `${loopName}-b.js`),
+            "file"
+          ))
+        )) {
+          skip("symlinks cannot be created on this host");
+        }
+
+        const sites = [
+          {
+            label: "loader TEMPLATE_LOAD_FAILED",
+            code: REACT_ADAPTER_ERROR_CODES.TEMPLATE_LOAD_FAILED,
+            name: loadName,
+            fire: () => compileTemplate(loadName, options),
+          },
+          {
+            label: "INVALID_EXPORT",
+            code: REACT_ADAPTER_ERROR_CODES.INVALID_EXPORT,
+            name: exportName,
+            fire: () => compileTemplate(exportName, options),
+          },
+          {
+            label: "RENDER_FAILED from render",
+            code: REACT_ADAPTER_ERROR_CODES.RENDER_FAILED,
+            name: renderName,
+            fire: () => compileTemplate(renderName, options),
+          },
+          {
+            label: "TEXT_FAILED",
+            code: REACT_ADAPTER_ERROR_CODES.TEXT_FAILED,
+            name: textName,
+            fire: () => {
+              textFailsOnce();
+              return compileTemplate(
+                textName,
+                options,
+                new ReactAdapter({ text: true })
+              );
+            },
+          },
+          {
+            label: "RENDER_FAILED from pretty",
+            code: REACT_ADAPTER_ERROR_CODES.RENDER_FAILED,
+            name: prettyName,
+            fire: () => {
+              prettyFailsOnce();
+              return compileTemplate(
+                prettyName,
+                options,
+                new ReactAdapter({ pretty: true })
+              );
+            },
+          },
+          {
+            label: "lookup TEMPLATE_LOAD_FAILED (symlink loop)",
+            code: REACT_ADAPTER_ERROR_CODES.TEMPLATE_LOAD_FAILED,
+            name: loopName,
+            fire: () => compileTemplate(loopName, options),
+          },
+        ];
+        for (const { label, code, name, fire } of sites) {
+          const error = expectAdapterError(await fire(), code);
+          expectEscaped(error, name, JSON.stringify(name), label);
+        }
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }
+  );
 
   test("a pretty formatter failure fails once as RENDER_FAILED and writes no html (TEST-01)", async () => {
     prettyFailsOnce();
