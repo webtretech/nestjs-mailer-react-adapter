@@ -5,6 +5,7 @@ import path from "node:path";
 import type { MailerOptions } from "@nestjs-modules/mailer";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
+import { isInsideRoot, resolveRealLocation } from "../src/template.confine";
 import {
   compileTemplate,
   expectAdapterError,
@@ -268,5 +269,163 @@ describe("template confinement by real location", () => {
     const both = options(at("root"), [at("b")]);
     expectRendered(await compileTemplate("shared/t", both), "M-b-shared-t");
     expectRendered(await compileTemplate("shared/u", both), "M-b-shared-u");
+  });
+
+  test("every configured root counts, and a file inside any of them is accepted (D-07)", async () => {
+    expectRendered(
+      await compileTemplate("../b/b", options(at("root"), [at("b")])),
+      "M-b-b"
+    );
+    const error = expectAdapterError(
+      await compileTemplate("../b/b", options(at("root"))),
+      OUTSIDE
+    );
+    expect(error.path).toBe(at("b", "b.js"));
+  });
+
+  test("a missing root contributes nothing that can load and reports TEMPLATE_NOT_FOUND (edge SEC-01/empty)", async () => {
+    expectRendered(
+      await compileTemplate("ok", options(at("missing"), [at("root")])),
+      "M-root-ok"
+    );
+    expectAdapterError(
+      await compileTemplate("ok", options(at("missing"))),
+      NOT_FOUND
+    );
+    expectRendered(
+      await compileTemplate("ok", options(at("root"), [])),
+      "M-root-ok"
+    );
+    // With template.dirs empty the single root alone confines.
+    expectAdapterError(
+      await compileTemplate("../b/b", options(at("root"), [])),
+      OUTSIDE
+    );
+  });
+
+  test("a dangling symlink inside a root is TEMPLATE_NOT_FOUND (accepted planter-only exception, D-25)", async ({
+    skip,
+  }) => {
+    needLinks(skip);
+    // D-25 and threat T-03-11: a link INSIDE the root whose target is missing reads as a plain miss, while the
+    // same shape with an existing outside target is refused. Only someone who can already write into the
+    // template folder can observe the difference, so no code closes it.
+    expectAdapterError(
+      await compileTemplate("dangling-out", options(at("root"))),
+      NOT_FOUND
+    );
+    expectAdapterError(
+      await compileTemplate("link-out-file", options(at("root"))),
+      OUTSIDE
+    );
+  });
+
+  test("an outside candidate is skipped and the first inside regular file in lookup order loads (D-24, edge SEC-01/ordering)", async ({
+    skip,
+  }) => {
+    needLinks(skip);
+    // root/w.js is a link out (skipped) beside a regular root/w.cjs.
+    expectRendered(
+      await compileTemplate("w", options(at("root"))),
+      "M-root-w-cjs"
+    );
+    // root/w2.js is regular and comes before the root/w2.cjs link out.
+    expectRendered(
+      await compileTemplate("w2", options(at("root"))),
+      "M-root-w2-js"
+    );
+  });
+
+  test("an escape with no inside file is TEMPLATE_OUTSIDE_ROOT, never TEMPLATE_NOT_FOUND (D-24)", async ({
+    skip,
+  }) => {
+    needLinks(skip);
+    const roots = [at("root"), at("b")];
+    for (const name of ["secret", "nope"]) {
+      const error = expectAdapterError(
+        await compileTemplate(
+          `link-out/${name}`,
+          options(roots[0], [roots[1]])
+        ),
+        OUTSIDE
+      );
+      expect(error.path).toBe(at("root", "link-out", `${name}.js`));
+      expect(error.roots).toEqual(roots);
+    }
+  });
+
+  test("names are compared as the filesystem stores them: no decoding, folding or normalising (edge SEC-01/encoding)", async () => {
+    expectAdapterError(
+      await compileTemplate("%2e%2e%2fout%2fsecret", options(at("root"))),
+      NOT_FOUND
+    );
+    const backslashed = await compileTemplate(
+      "..\\out\\secret",
+      options(at("root"))
+    );
+    if (process.platform === "win32") {
+      expectAdapterError(backslashed, OUTSIDE);
+    } else {
+      expectAdapterError(backslashed, NOT_FOUND);
+    }
+  });
+
+  test("concurrent sends of an escaping and an inside name each get their own outcome (edge SEC-01/concurrency)", async () => {
+    const [escaping, inside] = await Promise.all([
+      compileTemplate("../out/secret", options(at("root"))),
+      compileTemplate("ok", options(at("root"))),
+    ]);
+    expectAdapterError(escaping, OUTSIDE);
+    expectRendered(inside, "M-root-ok");
+  });
+
+  test("resolveRealLocation returns the real path for existing files and the deepest resolvable ancestor plus the tail for missing ones", async ({
+    skip,
+  }) => {
+    needLinks(skip);
+    const real = (...parts: string[]): string => path.join(realBase, ...parts);
+    expect(await resolveRealLocation(at("alias", "ok.js"))).toEqual({
+      location: real("root", "ok.js"),
+      failure: undefined,
+    });
+    expect(await resolveRealLocation(at("root", "nope.js"))).toEqual({
+      location: real("root", "nope.js"),
+      failure: undefined,
+    });
+    expect(
+      await resolveRealLocation(at("alias", "no", "such", "x.js"))
+    ).toEqual({
+      location: real("root", "no", "such", "x.js"),
+      failure: undefined,
+    });
+    // A path below a regular file is ENOTDIR: a miss, not a failure.
+    expect(await resolveRealLocation(at("root", "ok.js", "x.js"))).toEqual({
+      location: real("root", "ok.js", "x.js"),
+      failure: undefined,
+    });
+    const looped = await resolveRealLocation(at("root", "loop-a.js"));
+    expect(looped.location).toBe(real("root", "loop-a.js"));
+    expect(looped.failure?.cause).toMatchObject({ code: "ELOOP" });
+  });
+
+  test.each([
+    ["/a/b", "/a/b/c.js", true],
+    ["/a/b", "/a/bc/c.js", false],
+    ["/a/b", "/a/b", true],
+    ["/a/b", "/a/b/..hidden.js", true],
+    ["/a/b", "/a", false],
+    ["/", "/x", true],
+    ["/a/b/", "/a/b/c", true],
+  ])("isInsideRoot (posix) %s contains %s: %s", (root, candidate, expected) => {
+    expect(isInsideRoot(root, candidate, path.posix)).toBe(expected);
+  });
+
+  test.each([
+    ["C:\\a\\b", "D:\\a\\b\\c.js", false],
+    ["C:\\a\\b", "c:\\A\\B\\c.js", true],
+    ["\\\\srv\\sh\\r", "\\\\SRV\\sh\\r\\x.js", true],
+    ["\\\\srv\\sh\\r", "\\\\srv\\sh\\other\\x.js", false],
+  ])("isInsideRoot (win32) %s contains %s: %s", (root, candidate, expected) => {
+    expect(isInsideRoot(root, candidate, path.win32)).toBe(expected);
   });
 });
