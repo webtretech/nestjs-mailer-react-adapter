@@ -72,6 +72,10 @@ function parseRows(markdown: string): { rows: Row[]; problems: string[] } {
 // comment or in another string is never mistaken for a real call. The mask keeps every offset unchanged.
 const REGEX_PRECEDERS = "(,=:[!&|?{};";
 
+// Known limits, all of which fail loudly (the map check reports a missing title) and none of which occurs in the
+// current test files: a tagged-template each (test.each`a|b`("title", ...)) is not read as a test, a
+// single-quoted title with an escape ('it\'s') is compared with its backslash, and a regex literal after a
+// keyword other than return, typeof, case and throw can still hide the tests that follow it.
 function maskNonCode(source: string): string {
   const out = source.split("");
   let i = 0;
@@ -105,6 +109,11 @@ function maskNonCode(source: string): string {
     }
     return false;
   };
+  // A slash after one of these words starts a regex literal, not a division.
+  const afterKeyword = (): boolean =>
+    /(?:^|[^\w$.])(?:return|typeof|case|throw)\s*$/.test(
+      source.slice(Math.max(0, i - 40), i)
+    );
   const template = (): void => {
     i++;
     let from = i;
@@ -114,7 +123,10 @@ function maskNonCode(source: string): string {
       } else if (source[i] === "$" && source[i + 1] === "{") {
         blank(from, i);
         i += 2;
+        const inner = i;
         code(true);
+        // Code inside ${...} is never a test declaration, so it is blanked like the rest of the literal.
+        blank(inner, i);
         i++;
         from = i;
       } else {
@@ -145,7 +157,7 @@ function maskNonCode(source: string): string {
         last = ch;
       } else if (
         ch === "/" &&
-        (last === "" || REGEX_PRECEDERS.includes(last)) &&
+        (last === "" || REGEX_PRECEDERS.includes(last) || afterKeyword()) &&
         regex()
       ) {
         last = "/";
@@ -194,12 +206,27 @@ function closeOfAngle(masked: string, open: number): number {
   return -1;
 }
 
+function closeOfBrace(masked: string, open: number): number {
+  let depth = 0;
+  for (let k = open; k < masked.length; k++) {
+    if (masked[k] === "{") depth++;
+    else if (masked[k] === "}" && --depth === 0) return k + 1;
+  }
+  return -1;
+}
+
 // Every test(...) / it(...) call whose first argument is a plain string literal. `live` is false for
-// test.skip and test.todo; the conditional forms skipIf and runIf are real tests that run on one OS.
+// test.skip and test.todo, for a test inside describe.skip or describe.todo, and for a test whose options
+// object has skip or todo set to anything but false; the conditional forms skipIf and runIf are real tests that
+// run on one OS. A title that continues after its closing quote (a concatenation) is not a plain literal and is
+// not returned, so no row can match it.
 function testTitles(source: string): TestTitle[] {
   const masked = maskNonCode(source);
   const titles: TestTitle[] = [];
-  for (const head of masked.matchAll(/(?<![\w$.])(?:test|it)(?![\w$])/g)) {
+  const skippedSuites: [number, number][] = [];
+  for (const head of masked.matchAll(
+    /(?<![\w$.])(?:test|it|describe)(?![\w$])/g
+  )) {
     let pos = head.index + head[0].length;
     let live = true;
     for (;;) {
@@ -219,12 +246,36 @@ function testTitles(source: string): TestTitle[] {
     if (pos < 0) continue;
     while (/\s/.test(masked[pos] ?? "")) pos++;
     if (masked[pos] !== "(") continue;
+    if (head[0] === "describe") {
+      const end = closeOfParen(masked, pos);
+      if (!live && end > 0) skippedSuites.push([head.index, end]);
+      continue;
+    }
+    if (
+      skippedSuites.some(([from, to]) => head.index >= from && head.index < to)
+    ) {
+      live = false;
+    }
     pos++;
     while (/\s/.test(masked[pos] ?? "")) pos++;
     const quote = masked[pos];
     if (quote !== '"' && quote !== "'" && quote !== "`") continue;
     const close = masked.indexOf(quote, pos + 1);
     if (close < 0 || masked.slice(pos + 1, close).trim() !== "") continue;
+    let after = close + 1;
+    while (/\s/.test(masked[after] ?? "")) after++;
+    if (masked[after] !== "," && masked[after] !== ")") continue;
+    if (masked[after] === ",") {
+      after++;
+      while (/\s/.test(masked[after] ?? "")) after++;
+      const end = masked[after] === "{" ? closeOfBrace(masked, after) : -1;
+      if (
+        end > 0 &&
+        /\b(?:skip|todo)\s*:\s*(?!false\b)\S/.test(masked.slice(after, end))
+      ) {
+        live = false;
+      }
+    }
     titles.push({ raw: source.slice(pos + 1, close), quote, live });
   }
   return titles;
@@ -546,6 +597,78 @@ describe("the compile() path list (TEST-01, D-15)", () => {
       expect(problems, head).toHaveLength(1);
       expect(problems[0]).toContain('has no test titled "only a suite"');
     }
+  });
+
+  test("a title that only appears under a skipped or todo describe is reported", () => {
+    for (const head of ["describe.skip", "describe.todo"]) {
+      const source = code(
+        `${head}("suite", () => {`,
+        '  test("nested", () => {});',
+        "});",
+        'test("outside", () => {});'
+      );
+      const nested = rowProblems("test/x.test.ts", "nested", source);
+      expect(nested, head).toHaveLength(1);
+      expect(nested[0]).toContain("only on a skipped or todo test");
+      // The skip ends with the describe call: a later test is live again.
+      expect(rowProblems("test/x.test.ts", "outside", source), head).toEqual(
+        []
+      );
+    }
+    const live = code(
+      'describe("suite", () => {',
+      '  test("nested", () => {});',
+      "});"
+    );
+    expect(rowProblems("test/x.test.ts", "nested", live)).toEqual([]);
+  });
+
+  test("a title whose options object skips or todos the test is reported", () => {
+    for (const options of ["{ skip: true }", "{ todo: true }"]) {
+      const source = code(`test("optioned", ${options}, () => {});`);
+      const problems = rowProblems("test/x.test.ts", "optioned", source);
+      expect(problems, options).toHaveLength(1);
+      expect(problems[0]).toContain("only on a skipped or todo test");
+    }
+    for (const options of ["{ skip: false }", "{ timeout: 5000 }"]) {
+      const source = code(`test("optioned", ${options}, () => {});`);
+      expect(
+        rowProblems("test/x.test.ts", "optioned", source),
+        options
+      ).toEqual([]);
+    }
+  });
+
+  test("a title built by concatenation matches no row, not even one citing its first part", () => {
+    const source = code('test("part one" + " part two", () => {});');
+    for (const title of ["part one", "part one part two"]) {
+      const problems = rowProblems("test/x.test.ts", title, source);
+      expect(problems, title).toHaveLength(1);
+      expect(problems[0]).toContain(`has no test titled "${title}"`);
+    }
+  });
+
+  test("a test call inside a template literal interpolation is not counted", () => {
+    const source = code(
+      'const body = `${ test("in a template", () => {}) }`;',
+      'test("after the template", () => {});'
+    );
+    const inside = rowProblems("test/x.test.ts", "in a template", source);
+    expect(inside).toHaveLength(1);
+    expect(inside[0]).toContain('has no test titled "in a template"');
+    expect(rowProblems("test/x.test.ts", "after the template", source)).toEqual(
+      []
+    );
+  });
+
+  test("a regular expression after return does not hide the tests that follow it", () => {
+    const source = code(
+      'function f(s: string) { return /"x/.test(s); }',
+      'test("after a return regex", () => {});'
+    );
+    expect(
+      rowProblems("test/x.test.ts", "after a return regex", source)
+    ).toEqual([]);
   });
 
   test("a verify-build label counts only inside a where string", () => {
