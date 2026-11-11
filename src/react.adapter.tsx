@@ -79,7 +79,8 @@ export class ReactAdapter implements TemplateAdapter {
         );
       }
     }
-    // Assigned only once both parts exist, so a failure above leaves the mail untouched.
+    // html and text are assigned only after rendering and text conversion both succeeded. If a write fails
+    // (for example a non-extensible mail.data) the error is INVALID_MAIL, and html may already have been written.
     try {
       data["html"] = html;
       if (text !== undefined) {
