@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises";
 import path from "node:path";
 
-import { ReactAdapterError } from "./adapter.errors";
+import { REACT_ADAPTER_ERROR_CODES, ReactAdapterError } from "./adapter.errors";
 
 export const KNOWN_EXTENSIONS = [".js", ".cjs", ".mjs"] as const;
 
@@ -66,7 +66,7 @@ async function isFile(file: string, template: string): Promise<boolean> {
       return false;
     }
     throw new ReactAdapterError(
-      "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED",
+      REACT_ADAPTER_ERROR_CODES.TEMPLATE_LOAD_FAILED,
       `Could not inspect template file "${file}" for template "${template}".`,
       { template, path: file, cause: error }
     );
@@ -80,7 +80,7 @@ export async function locateTemplate(
   const directories = templateDirectories(templateOptions);
   if (!path.isAbsolute(template) && directories.length === 0) {
     throw new ReactAdapterError(
-      "ERR_REACT_ADAPTER_TEMPLATE_DIR_MISSING",
+      REACT_ADAPTER_ERROR_CODES.TEMPLATE_DIR_MISSING,
       `Template "${template}" is a relative name but template.dir (and template.dirs) is not set, so it cannot be resolved. Set template.dir in the mailer options or pass an absolute template path.`,
       { template }
     );
@@ -92,7 +92,7 @@ export async function locateTemplate(
     }
   }
   throw new ReactAdapterError(
-    "ERR_REACT_ADAPTER_TEMPLATE_NOT_FOUND",
+    REACT_ADAPTER_ERROR_CODES.TEMPLATE_NOT_FOUND,
     `Template "${template}" was not found. Searched: ${candidates.join(", ")}`,
     { template, path: candidates[0], searched: candidates }
   );
