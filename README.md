@@ -139,6 +139,13 @@ export default function Welcome({ name, code }: Props) {
 ```
 Templates are loaded once per process and cached by Node, so changes to a template file take effect after the application restarts.
 
+## Security
+
+- React escapes text and attribute values that you pass through `context`, so `<`, `>`, `&` and quotes cannot start a tag or leave an attribute.
+- That protection stops at the meaning of a value. In `href`, `src` and `action`, React 19 only replaces `javascript:` URLs; `data:` and every other scheme pass through. Validate or allow-list any URL that comes from user input.
+- `dangerouslySetInnerHTML` and `style` values are inserted without sanitising. Never pass user input to them.
+- Templates are code. They load only from inside `template.dir` and `template.dirs`, with symlinks resolved; names with a NUL byte or a URL scheme never load, and drive-letter and UNC names load only on Windows. `new ReactAdapter({ unsafeAllowOutsideTemplateDir: true })` is the only way to load a template from elsewhere. This guards against template names that try to escape, not against someone who can write into the template directory.
+
 ## Examples
 
 You could also check the [examples folder](./examples) in this repo for a working usage example and how to set it up with [SWC](https://docs.nestjs.com/recipes/swc) using [gulp](https://gulpjs.com/).
