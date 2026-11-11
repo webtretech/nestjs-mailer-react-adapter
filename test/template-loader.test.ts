@@ -191,6 +191,20 @@ describe("template-loader: render failures", () => {
     expect(error.message).toContain(file);
     expect(second.html).toBeUndefined();
   });
+
+  test("template-loader: a component that throws undefined fails as RENDER_FAILED and keeps an undefined cause", async () => {
+    await write(
+      "throws-undefined.js",
+      `module.exports = function Template() { throw undefined; };\n`
+    );
+    const error = expectAdapterError(
+      await send("throws-undefined"),
+      "ERR_REACT_ADAPTER_RENDER_FAILED"
+    );
+    expect("cause" in error).toBe(true);
+    expect(Object.hasOwn(error, "cause")).toBe(true);
+    expect(error.cause).toBeUndefined();
+  });
 });
 
 describe("template-loader: errors are raised once and never wrapped again", () => {

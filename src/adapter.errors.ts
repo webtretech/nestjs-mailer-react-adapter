@@ -28,10 +28,8 @@ export class ReactAdapterError extends Error {
       cause?: unknown;
     } = {}
   ) {
-    super(
-      message,
-      init.cause === undefined ? undefined : { cause: init.cause }
-    );
+    // Presence of the key decides, not its value: a thrown `undefined` is still a cause. Callers with no cause omit the key.
+    super(message, "cause" in init ? { cause: init.cause } : undefined);
     this.name = "ReactAdapterError";
     this.code = code;
     this.template = init.template;
