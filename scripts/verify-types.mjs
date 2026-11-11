@@ -15,9 +15,12 @@ import ts from "typescript";
 const root = path.resolve(import.meta.dirname, "..");
 const packageName = "@webtre/nestjs-mailer-react-adapter";
 
+// A failed check throws rather than calling process.exit(), which would skip the `finally` that
+// removes the temp directory; the catch at the bottom prints the FAIL line.
+class VerifyFailure extends Error {}
+
 function fail(message) {
-  console.error(`verify-types: FAIL ${message}`);
-  process.exit(1);
+  throw new VerifyFailure(message);
 }
 
 const deliberate = "const wrong: number = adapter;";
@@ -311,14 +314,15 @@ function checkProbes(dir) {
   return { programs, checks };
 }
 
-for (const entry of ["index.d.cts", "index.d.mts"]) {
-  if (!existsSync(path.join(root, "dist", entry))) {
-    fail(`dist/${entry} is missing, run npm run build first`);
-  }
-}
-
-const created = mkdtempSync(path.join(os.tmpdir(), "react-adapter-types-"));
+let created;
 try {
+  for (const entry of ["index.d.cts", "index.d.mts"]) {
+    if (!existsSync(path.join(root, "dist", entry))) {
+      fail(`dist/${entry} is missing, run npm run build first`);
+    }
+  }
+
+  created = mkdtempSync(path.join(os.tmpdir(), "react-adapter-types-"));
   const dir = realpathSync(created);
   const scope = path.join(dir, "node_modules", "@webtre");
   mkdirSync(scope, { recursive: true });
@@ -358,6 +362,15 @@ try {
   console.log(
     `verify-types: ok ${checks} probe checks in ${configurations.length} configurations, ${exportNames.length} exports walked with no any, d.ts files free of render imports, canary reported ${canary}`
   );
+} catch (error) {
+  console.error(
+    `verify-types: FAIL ${
+      error instanceof VerifyFailure
+        ? error.message
+        : `unexpected error: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+    }`
+  );
+  process.exitCode = 1;
 } finally {
-  rmSync(created, { recursive: true, force: true });
+  if (created !== undefined) rmSync(created, { recursive: true, force: true });
 }
