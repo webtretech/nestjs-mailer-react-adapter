@@ -23,7 +23,7 @@ export class ReactAdapter implements TemplateAdapter {
   private async run(mail: unknown, options: MailerOptions): Promise<void> {
     const { context, template } = (mail as TemplateMail).data;
     const file = await locateTemplate(template, options?.template);
-    const { value, exportNames } = await loadTemplate(file);
+    const { value, exportNames } = await loadTemplate(file, template);
     if (!isRenderable(value)) {
       throw new ReactAdapterError(
         REACT_ADAPTER_ERROR_CODES.INVALID_EXPORT,
@@ -32,7 +32,17 @@ export class ReactAdapter implements TemplateAdapter {
       );
     }
     const Comp = value;
-    const html = await render(<Comp {...context} />, this.config);
+    let html: string;
+    try {
+      html = await render(<Comp {...context} />, this.config);
+    } catch (cause) {
+      // The message names the template but not the cause: a render error can carry context values.
+      throw new ReactAdapterError(
+        REACT_ADAPTER_ERROR_CODES.RENDER_FAILED,
+        `Template "${template}" (${file}) threw while rendering; the component's error is in cause.`,
+        { template, path: file, cause }
+      );
+    }
     (mail as TemplateMail).data.html = html;
   }
 

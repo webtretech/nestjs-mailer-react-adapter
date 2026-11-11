@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, test, vi } from "vitest";
 
-import { ReactAdapter } from "../src";
+import { ReactAdapter, ReactAdapterError } from "../src";
 
 // Node 20.19+ can require() synchronous ESM, so ERR_REQUIRE_ESM no longer occurs naturally.
 // The loader's createRequire is stubbed to throw the code under test; everything else is real.
@@ -73,12 +73,17 @@ describe("loadTemplate import() fallback", () => {
     expect(outcome.html).toContain("<h1>esm-mjs</h1><p>Body</p>");
   });
 
-  test("characterization: any other require() error is reported once and never falls back", async () => {
+  test("any other require() error is reported once as ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED and never falls back (changed in 0.3.0, D-14)", async () => {
     stub.code = "EACCES";
     const outcome = await run("esm.mjs");
     expect(outcome.calls).toBe(1);
     expect(outcome.args).toHaveLength(1);
-    expect((outcome.args[0] as NodeJS.ErrnoException).code).toBe("EACCES");
+    const [error] = outcome.args;
+    expect(error).toBeInstanceOf(ReactAdapterError);
+    expect(error).toMatchObject({
+      code: "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED",
+      cause: { code: "EACCES" },
+    });
     expect(outcome.html).toBeUndefined();
   });
 });

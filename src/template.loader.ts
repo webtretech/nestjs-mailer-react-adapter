@@ -5,6 +5,8 @@ import { pathToFileURL } from "node:url";
 import { isValidElement } from "react";
 import type { ElementType } from "react";
 
+import { REACT_ADAPTER_ERROR_CODES, ReactAdapterError } from "./adapter.errors";
+
 export interface LoadedTemplate {
   /** The picked default export, not yet checked. */
   value: unknown;
@@ -53,9 +55,7 @@ function isRequireEsmError(error: unknown): boolean {
   );
 }
 
-export async function loadTemplate(file: string): Promise<LoadedTemplate> {
-  // createRequire rejects a relative path, so resolve against process.cwd() first, as 0.2.5 did implicitly.
-  const absolute = path.resolve(file);
+async function importOrRequire(absolute: string): Promise<LoadedTemplate> {
   try {
     const mod: unknown = createRequire(absolute)(absolute);
     return {
@@ -71,6 +71,26 @@ export async function loadTemplate(file: string): Promise<LoadedTemplate> {
       value: pickDefault(isObject(ns) ? readDefault(ns) : undefined),
       exportNames: namesOf(ns),
     };
+  }
+}
+
+// Nothing is cached here: Node does not cache a CommonJS module that threw while loading, so the next send retries it.
+// A native ESM module that failed to evaluate stays failed until the process restarts (D-22); no retry is added.
+export async function loadTemplate(
+  file: string,
+  template: string
+): Promise<LoadedTemplate> {
+  // createRequire rejects a relative path, so resolve against process.cwd() first, as 0.2.5 did implicitly.
+  const absolute = path.resolve(file);
+  try {
+    return await importOrRequire(absolute);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new ReactAdapterError(
+      REACT_ADAPTER_ERROR_CODES.TEMPLATE_LOAD_FAILED,
+      `Template "${template}" (${absolute}) failed to load: ${reason}. A CommonJS template is loaded again on the next send; a native ESM template that failed to load stays failed until the application restarts.`,
+      { template, path: absolute, cause: error }
+    );
   }
 }
 
