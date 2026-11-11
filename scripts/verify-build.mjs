@@ -71,7 +71,13 @@ const fixtures = [
 ];
 
 // Resolves 50 ms after the first callback so a second call is counted, or after 10 s if none arrives.
-function compileOnce(ReactAdapter, template) {
+// settings.template is the mailer options' `template` key (default { dir: fixturesDir }; null sends {} as the
+// mailer options); settings.adapterOptions is the ReactAdapter constructor argument.
+function compileOnce(ReactAdapter, template, settings = {}) {
+  const mailerTemplate =
+    settings.template === undefined ? { dir: fixturesDir } : settings.template;
+  const mailerOptions =
+    mailerTemplate === null ? {} : { template: mailerTemplate };
   return new Promise((resolve) => {
     const calls = [];
     const mail = { data: { template, context: { body: "Body" } } };
@@ -84,9 +90,11 @@ function compileOnce(ReactAdapter, template) {
       }
     };
     try {
-      new ReactAdapter().compile(mail, callback, {
-        template: { dir: fixturesDir },
-      });
+      new ReactAdapter(settings.adapterOptions).compile(
+        mail,
+        callback,
+        mailerOptions
+      );
     } catch (error) {
       clearTimeout(timer);
       resolve({ calls: [error], mail });
@@ -143,6 +151,70 @@ for (const entry of entries) {
     }
   }
 
+  // Invalid names and rootless absolute names are refused through the callback from this entry too (D-06, D-20).
+  {
+    const where = `${entry.label} confinement`;
+    const { ReactAdapterError } = entry.module;
+    const absolute = path.join(fixturesDir, "tsc-cjs.js");
+
+    const invalid = await compileOnce(ReactAdapter, "tsc-cjs\0", {
+      adapterOptions: { unsafeAllowOutsideTemplateDir: true },
+    });
+    if (invalid.calls.length !== 1) {
+      fail(
+        `${where}: invalid name called back ${invalid.calls.length} times, expected 1`
+      );
+    }
+    const [invalidError] = invalid.calls;
+    if (
+      !(invalidError instanceof ReactAdapterError) ||
+      invalidError.code !== "ERR_REACT_ADAPTER_INVALID_TEMPLATE_NAME"
+    ) {
+      fail(
+        `${where}: a NUL-byte name expected INVALID_TEMPLATE_NAME even with the opt-out, got ${describe(invalidError)}`
+      );
+    }
+
+    const refused = await compileOnce(ReactAdapter, absolute, {
+      template: null,
+    });
+    if (refused.calls.length !== 1) {
+      fail(
+        `${where}: rootless absolute name called back ${refused.calls.length} times, expected 1`
+      );
+    }
+    const [refusedError] = refused.calls;
+    if (
+      !(refusedError instanceof ReactAdapterError) ||
+      refusedError.code !== "ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT" ||
+      !Array.isArray(refusedError.roots) ||
+      refusedError.roots.length !== 0
+    ) {
+      fail(
+        `${where}: a rootless absolute name expected TEMPLATE_OUTSIDE_ROOT with empty roots, got ${describe(refusedError)}`
+      );
+    }
+
+    const allowed = await compileOnce(ReactAdapter, absolute, {
+      template: null,
+      adapterOptions: { unsafeAllowOutsideTemplateDir: true },
+    });
+    if (allowed.calls.length !== 1) {
+      fail(
+        `${where}: opted-out absolute name called back ${allowed.calls.length} times, expected 1`
+      );
+    }
+    if (allowed.calls[0] !== undefined) {
+      fail(
+        `${where}: opted-out absolute name received an error: ${describe(allowed.calls[0])}`
+      );
+    }
+    const { html } = allowed.mail.data;
+    if (typeof html !== "string" || !html.includes("<h1>tsc-cjs</h1>")) {
+      fail(`${where}: opted-out absolute name did not render <h1>tsc-cjs</h1>`);
+    }
+  }
+
   // D-22: a native ESM template that fails to load stays failed; the adapter adds no retry.
   // Node caches a failed ESM evaluation per file URL, and both entries run in this one process, so each
   // entry gets its own copy in a fresh directory and therefore its own fresh failure.
@@ -164,7 +236,9 @@ for (const entry of entries) {
       delete globalThis.__reactAdapterEsmThrows;
       const before = evaluations();
 
-      const first = await compileOnce(ReactAdapter, copy);
+      const first = await compileOnce(ReactAdapter, copy, {
+        template: { dir },
+      });
       if (first.calls.length !== 1) {
         fail(
           `${where}: first send called back ${first.calls.length} times, expected 1`
@@ -188,7 +262,9 @@ for (const entry of entries) {
 
       globalThis.__reactAdapterEsmThrows = false;
       const afterFirst = evaluations();
-      const second = await compileOnce(ReactAdapter, copy);
+      const second = await compileOnce(ReactAdapter, copy, {
+        template: { dir },
+      });
       if (second.calls.length !== 1) {
         fail(
           `${where}: second send called back ${second.calls.length} times, expected 1`
@@ -222,5 +298,5 @@ for (const entry of entries) {
 }
 
 console.log(
-  `verify-build: ok ${targets.length} export targets present, import() retained, CJS and ESM entries render ${fixtures.length} template shapes, report a missing template as a typed error and keep a failed ESM load failed`
+  `verify-build: ok ${targets.length} export targets present, import() retained, CJS and ESM entries render ${fixtures.length} template shapes, report a missing template as a typed error and keep a failed ESM load failed, refuse invalid names and rootless absolute names unless opted out`
 );

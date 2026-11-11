@@ -4,10 +4,16 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { MailerOptions } from "@nestjs-modules/mailer";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 
 import { REACT_ADAPTER_ERROR_CODES, ReactAdapter } from "../src";
-import { compileTemplate, expectAdapterError, writeTemplate } from "./helpers";
+import type { ReactAdapterOptions } from "../src";
+import {
+  compileOnce,
+  compileTemplate,
+  expectAdapterError,
+  writeTemplate,
+} from "./helpers";
 import type { Outcome } from "./helpers";
 
 const FIXTURES = path.join(
@@ -329,9 +335,38 @@ describe("no template directory at all (D-27)", () => {
     expect(error.searched).toEqual(candidates(dir("a"), "nope"));
   });
 
-  test("an absolute name with no template.dir still renders", async () => {
-    expectRendered(await compileTemplate(dir("base/all3.js"), {}), "all3-js");
-    expectRendered(await compileTemplate(dir("base/cm"), {}), "cm-cjs");
+  test("an absolute name with no template.dir is TEMPLATE_OUTSIDE_ROOT with an empty roots list (changed in 0.3.0, D-20)", async () => {
+    for (const name of [dir("base/all3.js"), dir("base/cm")]) {
+      const error = expectAdapterError(
+        await compileTemplate(name, {}),
+        "ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT"
+      );
+      expect(error.template).toBe(name);
+      expect(error.roots).toEqual([]);
+      expect(error.path).toBeUndefined();
+      expect(error.message).toContain("template.dir");
+      expect(error.message).toContain("unsafeAllowOutsideTemplateDir");
+    }
+    // D-26: the message shows the last path segment only, the full name stays on error.template.
+    const error = expectAdapterError(
+      await compileTemplate(dir("base/all3.js"), {}),
+      "ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT"
+    );
+    expect(error.message).toContain("all3.js");
+    expect(error.message).not.toContain(dir("base"));
+    expect(error.template).toBe(dir("base/all3.js"));
+  });
+
+  test("an absolute name with no template.dir renders with unsafeAllowOutsideTemplateDir: true (D-20)", async () => {
+    const adapter = new ReactAdapter({ unsafeAllowOutsideTemplateDir: true });
+    expectRendered(
+      await compileTemplate(dir("base/all3.js"), {}, adapter),
+      "all3-js"
+    );
+    expectRendered(
+      await compileTemplate(dir("base/cm"), {}, adapter),
+      "cm-cjs"
+    );
   });
 
   test("template.dirs that is not an array, or holds non-strings and empty strings, never throws", async () => {
@@ -353,6 +388,130 @@ describe("no template directory at all (D-27)", () => {
       expect(missing.searched).toBeUndefined();
     }
   });
+});
+
+// Adapter options holding a value for the opt-out key that the type would reject.
+function looseAdapterOptions(value: unknown): ReactAdapterOptions {
+  const loose: ReactAdapterOptions = {};
+  Object.assign(loose, { unsafeAllowOutsideTemplateDir: value });
+  return loose;
+}
+
+// Mailer options that carry the opt-out key at `where`, built without a type assertion.
+function mailerOptionsWithKey(where: "template.options" | "template" | "top") {
+  const loose: MailerOptions = {};
+  const key = { unsafeAllowOutsideTemplateDir: true };
+  if (where === "template.options") {
+    Object.assign(loose, { template: { options: key } });
+  } else if (where === "template") {
+    Object.assign(loose, { template: key });
+  } else {
+    Object.assign(loose, key);
+  }
+  return loose;
+}
+
+describe("the confinement option (D-11, D-12, D-13, D-19, D-20, D-23)", () => {
+  test("a relative name with no template root stays TEMPLATE_DIR_MISSING with and without the option", async () => {
+    for (const adapter of [
+      new ReactAdapter(),
+      new ReactAdapter({ unsafeAllowOutsideTemplateDir: true }),
+    ]) {
+      const error = expectAdapterError(
+        await compileTemplate("welcome", {}, adapter),
+        "ERR_REACT_ADAPTER_TEMPLATE_DIR_MISSING"
+      );
+      expect(error.message).not.toContain("absolute template path");
+    }
+  });
+
+  test("only the literal true enables the option", async () => {
+    for (const value of ["true", 1, {}]) {
+      const error = expectAdapterError(
+        await compileTemplate(
+          dir("base/all3.js"),
+          {},
+          new ReactAdapter(looseAdapterOptions(value))
+        ),
+        "ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT"
+      );
+      expect(error.roots).toEqual([]);
+    }
+  });
+
+  test("the name rules ignore the option", async () => {
+    const adapter = new ReactAdapter({ unsafeAllowOutsideTemplateDir: true });
+    for (const name of ["tsc-cjs\0", "file:x", "\\\\?\\C:\\x"]) {
+      expectAdapterError(
+        await compileTemplate(name, {}, adapter),
+        "ERR_REACT_ADAPTER_INVALID_TEMPLATE_NAME"
+      );
+    }
+  });
+
+  test.skipIf(process.platform === "win32")(
+    "drive-letter and UNC names are refused with the option off Windows (D-19)",
+    async () => {
+      const adapter = new ReactAdapter({ unsafeAllowOutsideTemplateDir: true });
+      for (const name of ["C:\\x", "//srv/sh/x"]) {
+        expectAdapterError(
+          await compileTemplate(name, {}, adapter),
+          "ERR_REACT_ADAPTER_INVALID_TEMPLATE_NAME"
+        );
+      }
+    }
+  );
+
+  test("the key anywhere but the constructor does not lift the refusal (D-12)", async () => {
+    const name = dir("base/all3.js");
+    const outside = "ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT";
+    for (const where of ["template.options", "template", "top"] as const) {
+      expectAdapterError(
+        await compileTemplate(name, mailerOptionsWithKey(where)),
+        outside
+      );
+    }
+    const key = { unsafeAllowOutsideTemplateDir: true };
+    expectAdapterError(
+      await compileOnce(
+        new ReactAdapter(),
+        { data: { template: name, context: { body: "Body" }, ...key } },
+        {}
+      ),
+      outside
+    );
+    expectAdapterError(
+      await compileOnce(
+        new ReactAdapter(),
+        { data: { template: name, context: { body: "Body", ...key } } },
+        {}
+      ),
+      outside
+    );
+  });
+
+  test("constructing with the option emits no warning (D-13)", () => {
+    const emitWarning = vi
+      .spyOn(process, "emitWarning")
+      .mockImplementation(() => undefined);
+    try {
+      new ReactAdapter({ unsafeAllowOutsideTemplateDir: true });
+      expect(emitWarning).not.toHaveBeenCalled();
+    } finally {
+      emitWarning.mockRestore();
+    }
+  });
+
+  test.runIf(process.platform === "win32")(
+    "a UNC name on a server no root uses is INVALID_TEMPLATE_NAME (D-23)",
+    async () => {
+      const name = "\\\\gsd-unc-guard.invalid\\share\\welcome";
+      expectAdapterError(
+        await compileTemplate(name, options(dir("base"))),
+        "ERR_REACT_ADAPTER_INVALID_TEMPLATE_NAME"
+      );
+    }
+  );
 });
 
 describe("names, codes and failures", () => {

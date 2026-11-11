@@ -31,7 +31,9 @@ export class ReactAdapter implements TemplateAdapter {
       return;
     }
     const { data, template, context } = classified;
-    const file = await locateTemplate(template, options?.template);
+    const file = await locateTemplate(template, options?.template, {
+      allowOutside: settings.unsafeAllowOutsideTemplateDir,
+    });
     const { value, exportNames } = await loadTemplate(file, template);
     if (!isRenderable(value)) {
       throw new ReactAdapterError(

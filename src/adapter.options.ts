@@ -15,6 +15,8 @@ export type ReactAdapterOptions = {
   htmlToTextOptions?: HtmlToTextConfig;
   /** Convert to text with render's in-house formatter instead of html-to-text. */
   unstableTextConversion?: boolean;
+  /** Load templates from outside template.dir and template.dirs. Constructor only; only the literal true enables it. */
+  unsafeAllowOutsideTemplateDir?: boolean;
 };
 
 type OwnOptionKeys =
@@ -22,7 +24,8 @@ type OwnOptionKeys =
   | "text"
   | "plainText"
   | "htmlToTextOptions"
-  | "unstableTextConversion";
+  | "unstableTextConversion"
+  | "unsafeAllowOutsideTemplateDir";
 
 /** The keys the adapter does not own: they reach render() untouched. */
 export type RenderPassThrough = Omit<ReactAdapterOptions, OwnOptionKeys>;
@@ -32,6 +35,7 @@ export interface ResolvedSettings {
   text: boolean;
   htmlToTextOptions: HtmlToTextConfig | undefined;
   unstableTextConversion: boolean;
+  unsafeAllowOutsideTemplateDir: boolean;
   renderOptions: RenderPassThrough;
 }
 
@@ -68,6 +72,7 @@ export function resolveSettings(
     plainText,
     htmlToTextOptions,
     unstableTextConversion,
+    unsafeAllowOutsideTemplateDir,
     ...renderOptions
   }: ReactAdapterOptions = isOptionsObject(options) ? options : {};
 
@@ -84,6 +89,8 @@ export function resolveSettings(
       ? { ...htmlToTextOptions }
       : undefined,
     unstableTextConversion: unstableTextConversion === true,
+    // Strict: only the literal true counts, and only the constructor argument is ever read.
+    unsafeAllowOutsideTemplateDir: unsafeAllowOutsideTemplateDir === true,
     renderOptions,
   };
 }

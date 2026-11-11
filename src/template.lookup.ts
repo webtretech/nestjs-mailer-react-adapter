@@ -4,6 +4,7 @@ import path from "node:path";
 import { REACT_ADAPTER_ERROR_CODES, ReactAdapterError } from "./adapter.errors";
 import {
   classifyTemplateName,
+  isUncNameAllowed,
   messageTemplateName,
   type NameVerdict,
 } from "./template.confine";
@@ -101,18 +102,38 @@ function invalidTemplateName(
 
 export async function locateTemplate(
   template: string,
-  templateOptions: unknown
+  templateOptions: unknown,
+  confinement: { readonly allowOutside: boolean }
 ): Promise<string> {
   const verdict = classifyTemplateName(template);
   if (verdict !== "ok") {
     throw invalidTemplateName(template, INVALID_REASONS[verdict]);
   }
   const directories = templateDirectories(templateOptions);
+  // The UNC share guard needs no I/O and runs before any filesystem call, so a refused UNC name
+  // never makes the host contact the named server.
+  if (!isUncNameAllowed(template, directories, confinement.allowOutside)) {
+    throw invalidTemplateName(
+      template,
+      "it is a UNC path on a server and share that no configured template root uses"
+    );
+  }
   if (!path.isAbsolute(template) && directories.length === 0) {
     throw new ReactAdapterError(
       REACT_ADAPTER_ERROR_CODES.TEMPLATE_DIR_MISSING,
-      `Template "${template}" is a relative name but template.dir (and template.dirs) is not set, so it cannot be resolved. Set template.dir in the mailer options or pass an absolute template path.`,
+      `Template "${template}" is a relative name but template.dir (and template.dirs) is not set, so it cannot be resolved. Set template.dir in the mailer options.`,
       { template }
+    );
+  }
+  if (
+    path.isAbsolute(template) &&
+    directories.length === 0 &&
+    !confinement.allowOutside
+  ) {
+    throw new ReactAdapterError(
+      REACT_ADAPTER_ERROR_CODES.TEMPLATE_OUTSIDE_ROOT,
+      `Template "${messageTemplateName(template)}" is an absolute name, but no template.dir or template.dirs is configured, so it lies outside every template root. Set template.dir, or construct ReactAdapter with unsafeAllowOutsideTemplateDir: true.`,
+      { template, roots: [] }
     );
   }
   const candidates = candidateFiles(template, directories);
