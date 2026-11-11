@@ -249,4 +249,29 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
       }
     }
   });
+
+  // Assigning html is part of the work before the final handler pair, so a failure there reaches callback(error) once.
+  test("a failure assigning html is reported once through callback(error)", async () => {
+    const mail = {
+      data: Object.freeze({
+        template: "tsc-cjs",
+        context: { body: "Body" },
+        html: undefined,
+      }),
+    };
+    const args: unknown[][] = [];
+    await new Promise<void>((resolve) => {
+      new ReactAdapter().compile(
+        mail,
+        (...received: unknown[]) => {
+          args.push(received);
+          setTimeout(resolve, 50);
+        },
+        mailerOptions(FIXTURES)
+      );
+    });
+    expect(args).toHaveLength(1);
+    expect(args[0]).toHaveLength(1);
+    expect(args[0][0]).toBeInstanceOf(TypeError);
+  });
 });
