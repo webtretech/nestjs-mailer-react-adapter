@@ -36,10 +36,14 @@ const config: HtmlToTextConfig = { wordwrap: 80 };
 const options: ReactAdapterOptions = {
   text: true,
   htmlToTextOptions: { wordwrap: 80 },
+  unsafeAllowOutsideTemplateDir: true,
 };
 const adapter = new ReactAdapter(options);
 const error = new ReactAdapterError("ERR_REACT_ADAPTER_NO_BODY", "m");
 const code: ReactAdapterErrorCode = error.code;
+const outside = new ReactAdapterError("ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT", "m", { roots: ["/r"] });
+const roots: readonly string[] | undefined = outside.roots;
+const invalidCode: ReactAdapterErrorCode = "ERR_REACT_ADAPTER_INVALID_TEMPLATE_NAME";
 ${deliberate}
 `;
 

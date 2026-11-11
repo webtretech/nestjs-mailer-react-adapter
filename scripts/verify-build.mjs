@@ -215,6 +215,86 @@ for (const entry of entries) {
     }
   }
 
+  // Templates are confined to their roots from this entry too (D-01, D-03, D-04): an escaping name is refused
+  // whether or not the target exists, the message never repeats the root, and the opt-out switches only the
+  // root check off.
+  {
+    const where = `${entry.label} escape`;
+    const { ReactAdapterError } = entry.module;
+
+    const expectOutside = (outcome, label) => {
+      if (outcome.calls.length !== 1) {
+        fail(
+          `${where}: ${label} called back ${outcome.calls.length} times, expected 1`
+        );
+      }
+      const [error] = outcome.calls;
+      if (
+        !(error instanceof ReactAdapterError) ||
+        error.code !== "ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT" ||
+        JSON.stringify(error.roots) !== JSON.stringify([fixturesDir]) ||
+        error.message.includes(fixturesDir)
+      ) {
+        fail(
+          `${where}: ${label} expected TEMPLATE_OUTSIDE_ROOT with roots [fixturesDir] and no root in the message, got ${describe(error)}`
+        );
+      }
+    };
+    const expectRendered = (outcome, marker, label) => {
+      if (outcome.calls.length !== 1) {
+        fail(
+          `${where}: ${label} called back ${outcome.calls.length} times, expected 1`
+        );
+      }
+      if (outcome.calls[0] !== undefined) {
+        fail(
+          `${where}: ${label} received an error: ${describe(outcome.calls[0])}`
+        );
+      }
+      const { html } = outcome.mail.data;
+      if (typeof html !== "string" || !html.includes(marker)) {
+        fail(`${where}: ${label} did not render ${marker}`);
+      }
+    };
+
+    for (const name of ["../../package", "../../scripts/verify-build.mjs"]) {
+      expectOutside(await compileOnce(ReactAdapter, name), name);
+    }
+    expectRendered(
+      await compileOnce(ReactAdapter, "../fixtures/tsc-cjs"),
+      "<h1>tsc-cjs</h1>",
+      "../fixtures/tsc-cjs"
+    );
+
+    const unrelated = { dir: path.join(root, "scripts") };
+    const insideFixtures = path.join(fixturesDir, "tsc-cjs.js");
+    const refusedElsewhere = await compileOnce(ReactAdapter, insideFixtures, {
+      template: unrelated,
+    });
+    if (refusedElsewhere.calls.length !== 1) {
+      fail(
+        `${where}: an absolute name outside the root called back ${refusedElsewhere.calls.length} times, expected 1`
+      );
+    }
+    const [elsewhereError] = refusedElsewhere.calls;
+    if (
+      !(elsewhereError instanceof ReactAdapterError) ||
+      elsewhereError.code !== "ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT"
+    ) {
+      fail(
+        `${where}: an absolute name outside the root expected TEMPLATE_OUTSIDE_ROOT without the opt-out, got ${describe(elsewhereError)}`
+      );
+    }
+    expectRendered(
+      await compileOnce(ReactAdapter, insideFixtures, {
+        template: unrelated,
+        adapterOptions: { unsafeAllowOutsideTemplateDir: true },
+      }),
+      "<h1>tsc-cjs</h1>",
+      "an absolute name outside the root with the opt-out"
+    );
+  }
+
   // D-22: a native ESM template that fails to load stays failed; the adapter adds no retry.
   // Node caches a failed ESM evaluation per file URL, and both entries run in this one process, so each
   // entry gets its own copy in a fresh directory and therefore its own fresh failure.
@@ -298,5 +378,5 @@ for (const entry of entries) {
 }
 
 console.log(
-  `verify-build: ok ${targets.length} export targets present, import() retained, CJS and ESM entries render ${fixtures.length} template shapes, report a missing template as a typed error and keep a failed ESM load failed, refuse invalid names and rootless absolute names unless opted out`
+  `verify-build: ok ${targets.length} export targets present, import() retained, CJS and ESM entries render ${fixtures.length} template shapes, report a missing template as a typed error and keep a failed ESM load failed, refuse invalid names and rootless absolute names unless opted out, and confine templates to their roots`
 );

@@ -3,10 +3,14 @@ import os from "node:os";
 import path from "node:path";
 
 import type { MailerOptions } from "@nestjs-modules/mailer";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 
+import { ReactAdapter } from "../src";
+import type { ReactAdapterOptions } from "../src";
 import { isInsideRoot, resolveRealLocation } from "../src/template.confine";
+import { locateTemplate } from "../src/template.lookup";
 import {
+  compileOnce,
   compileTemplate,
   expectAdapterError,
   makeLink,
@@ -22,6 +26,8 @@ const NOT_FOUND = "ERR_REACT_ADAPTER_TEMPLATE_NOT_FOUND";
 let base = "";
 let realBase = "";
 let linksOk = true;
+const INVALID_NAME = "ERR_REACT_ADAPTER_INVALID_TEMPLATE_NAME";
+const DIR_MISSING = "ERR_REACT_ADAPTER_TEMPLATE_DIR_MISSING";
 const COUNTER_KEY = "__reactAdapterConfinementCounted";
 let caseInsensitive = false;
 
@@ -484,4 +490,244 @@ describe("template confinement by real location", () => {
   ])("isInsideRoot (win32) %s contains %s: %s", (root, candidate, expected) => {
     expect(isInsideRoot(root, candidate, path.win32)).toBe(expected);
   });
+});
+
+// A JavaScript caller can hand compile() undefined mailer options; the type forbids it, so this one
+// constant models that caller. It is the only double assertion in this phase.
+const NO_MAILER_OPTIONS = undefined as unknown as MailerOptions;
+
+const OPTED_OUT = (): ReactAdapter =>
+  new ReactAdapter({ unsafeAllowOutsideTemplateDir: true });
+
+// Mailer options that carry the opt-out's name in a place the adapter must ignore.
+function misplacedOptions(place: string): MailerOptions {
+  const rootDir = at("root");
+  const loose: MailerOptions = {};
+  const key = { unsafeAllowOutsideTemplateDir: true };
+  switch (place) {
+    case "template.options":
+      Object.assign(loose, { template: { dir: rootDir, options: key } });
+      break;
+    case "template":
+      Object.assign(loose, { template: { dir: rootDir, ...key } });
+      break;
+    case "top level":
+      Object.assign(loose, { template: { dir: rootDir }, ...key });
+      break;
+    default:
+      Object.assign(loose, { template: { dir: rootDir }, options: key });
+  }
+  return loose;
+}
+
+describe("unsafeAllowOutsideTemplateDir (D-11, D-12, D-13, D-19)", () => {
+  test("with the opt-out an absolute name outside, ../ and a symlink out load as in 0.2.x (D-11)", async ({
+    skip,
+  }) => {
+    needLinks(skip);
+    const viaRoot = options(at("root"));
+    for (const name of [
+      "../out/secret",
+      at("out", "secret.js"),
+      "link-out-file",
+    ]) {
+      expectRendered(
+        await compileTemplate(name, viaRoot, OPTED_OUT()),
+        "M-out-secret"
+      );
+    }
+  });
+
+  test("NUL, URL-scheme and verbatim device names stay INVALID_TEMPLATE_NAME with the opt-out on every OS (D-11)", async () => {
+    for (const name of ["ok\0", "file:x", "\\\\?\\C:\\x"]) {
+      const outcome = await compileTemplate(
+        name,
+        options(at("root")),
+        OPTED_OUT()
+      );
+      expectAdapterError(outcome, INVALID_NAME);
+    }
+  });
+
+  test.skipIf(process.platform === "win32")(
+    "drive-letter and UNC names stay INVALID_TEMPLATE_NAME with the opt-out off Windows (D-19)",
+    async () => {
+      for (const name of ["C:\\x", "//srv/sh/x"]) {
+        const outcome = await compileTemplate(
+          name,
+          options(at("root")),
+          OPTED_OUT()
+        );
+        expectAdapterError(outcome, INVALID_NAME);
+      }
+    }
+  );
+
+  test("the key in template.options, template, the top level, the options bag, mail.data or context does not enable it (D-12)", async () => {
+    for (const place of [
+      "template.options",
+      "template",
+      "top level",
+      "options bag",
+    ]) {
+      expectAdapterError(
+        await compileTemplate("../out/secret", misplacedOptions(place)),
+        OUTSIDE
+      );
+    }
+    for (const data of [
+      { unsafeAllowOutsideTemplateDir: true, context: { body: "Body" } },
+      { context: { body: "Body", unsafeAllowOutsideTemplateDir: true } },
+    ]) {
+      const mail = {
+        data: {
+          template: "../out/secret",
+          html: undefined as unknown,
+          ...data,
+        },
+      };
+      expectAdapterError(
+        await compileOnce(new ReactAdapter(), mail, options(at("root"))),
+        OUTSIDE
+      );
+    }
+  });
+
+  test("constructor values other than the literal true do not enable it (D-12)", async () => {
+    for (const value of ["true", 1, {}]) {
+      const loose: ReactAdapterOptions = {};
+      Object.assign(loose, { unsafeAllowOutsideTemplateDir: value });
+      expectAdapterError(
+        await compileTemplate(
+          "../out/secret",
+          options(at("root")),
+          new ReactAdapter(loose)
+        ),
+        OUTSIDE
+      );
+    }
+  });
+
+  test("constructing with the opt-out and rendering outside a root never warns or logs (D-13)", async () => {
+    const spies = [
+      vi.spyOn(process, "emitWarning").mockImplementation(() => undefined),
+      vi.spyOn(console, "warn").mockImplementation(() => undefined),
+      vi.spyOn(console, "error").mockImplementation(() => undefined),
+      vi.spyOn(console, "log").mockImplementation(() => undefined),
+    ];
+    try {
+      expectRendered(
+        await compileTemplate(
+          "../out/secret",
+          options(at("root")),
+          OPTED_OUT()
+        ),
+        "M-out-secret"
+      );
+      for (const spy of spies) {
+        expect(spy).not.toHaveBeenCalled();
+      }
+    } finally {
+      for (const spy of spies) {
+        spy.mockRestore();
+      }
+    }
+  });
+
+  test("compile() with undefined mailer options: a relative name is DIR_MISSING and an absolute name is OUTSIDE_ROOT unless opted out", async () => {
+    const mail = (template: string) => ({
+      data: { template, context: { body: "Body" }, html: undefined as unknown },
+    });
+    expectAdapterError(
+      await compileOnce(new ReactAdapter(), mail("ok"), NO_MAILER_OPTIONS),
+      DIR_MISSING
+    );
+    const absolute = at("root", "ok.js");
+    const refused = expectAdapterError(
+      await compileOnce(new ReactAdapter(), mail(absolute), NO_MAILER_OPTIONS),
+      OUTSIDE
+    );
+    expect(refused.roots).toEqual([]);
+    expectRendered(
+      await compileOnce(OPTED_OUT(), mail(absolute), NO_MAILER_OPTIONS),
+      "M-root-ok"
+    );
+  });
+
+  test("every file locateTemplate returns lies inside a configured root unless the opt-out is on", async ({
+    skip,
+  }) => {
+    needLinks(skip);
+    const roots = [at("root")];
+    const both = [at("root"), at("b")];
+    const loading: [string, string[], string | undefined][] = [
+      ["ok", roots, undefined],
+      ["sub/../ok", roots, undefined],
+      ["link-in", roots, undefined],
+      ["w", roots, path.join(realBase, "root", "w.cjs")],
+      ["w2", roots, undefined],
+      [at("root", "ok.js"), roots, undefined],
+      [path.join(realBase, "root", "ok.js"), roots, undefined],
+      [at("alias", "ok.js"), roots, undefined],
+      ["../b/b", both, path.join(realBase, "b", "b.js")],
+      ["shared/t", both, path.join(realBase, "b", "shared", "t.js")],
+    ];
+    const escaping = [
+      "../out/secret",
+      at("out", "secret.js"),
+      "link-out-file",
+      "link-out/secret",
+    ];
+    const realRoots = await Promise.all(
+      both.map((directory) => fs.realpath(directory))
+    );
+    const inside = (file: string): boolean =>
+      realRoots.some((realRoot) => {
+        const relative = path.relative(realRoot, file);
+        return (
+          relative !== "" &&
+          !relative.startsWith("..") &&
+          !path.isAbsolute(relative)
+        );
+      });
+
+    for (const [name, directories, expected] of loading) {
+      const file = await locateTemplate(
+        name,
+        { dirs: directories },
+        { allowOutside: false }
+      );
+      const real = await fs.realpath(file);
+      expect(file, name).toBe(real);
+      expect(inside(real), name).toBe(true);
+      if (expected !== undefined) {
+        expect(real, name).toBe(expected);
+      }
+    }
+    for (const name of escaping) {
+      await expect(
+        locateTemplate(name, { dirs: roots }, { allowOutside: false })
+      ).rejects.toMatchObject({ code: OUTSIDE });
+      const file = await locateTemplate(
+        name,
+        { dirs: roots },
+        { allowOutside: true }
+      );
+      expect(inside(await fs.realpath(file)), name).toBe(false);
+    }
+  });
+
+  test.runIf(process.platform === "win32")(
+    "a drive-letter absolute name inside a root loads and one outside every root is TEMPLATE_OUTSIDE_ROOT (D-05 exception)",
+    async () => {
+      expectRendered(
+        await compileTemplate(at("root", "ok.js"), options(at("root"))),
+        "M-root-ok"
+      );
+      expectAdapterError(
+        await compileTemplate(at("out", "secret.js"), options(at("root"))),
+        OUTSIDE
+      );
+    }
+  );
 });

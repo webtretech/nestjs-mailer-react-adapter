@@ -205,6 +205,7 @@ describe("text part from one render", () => {
       plainText: true,
       htmlToTextOptions: { wordwrap: 20 },
       unstableTextConversion: false,
+      unsafeAllowOutsideTemplateDir: true,
       futureOption: 1,
     };
     const adapter = new ReactAdapter(options);
@@ -219,6 +220,7 @@ describe("text part from one render", () => {
       "plainText",
       "htmlToTextOptions",
       "unstableTextConversion",
+      "unsafeAllowOutsideTemplateDir",
     ]) {
       expect(renderOptions).not.toHaveProperty(key);
     }
