@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import type { MailerOptions } from "@nestjs-modules/mailer";
 import { describe, expect, test } from "vitest";
 
-import { ReactAdapter } from "../src";
+import { ReactAdapter, ReactAdapterError } from "../src";
 
 const FIXTURES = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -116,7 +116,7 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
     );
   });
 
-  test("characterization: missing template reports MODULE_NOT_FOUND once", async () => {
+  test("missing template reports ERR_REACT_ADAPTER_TEMPLATE_NOT_FOUND once with every searched path (changed in 0.3.0)", async () => {
     const outcome = await run(
       new ReactAdapter(),
       "does-not-exist",
@@ -124,28 +124,48 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
     );
     expect(outcome.calls).toBe(1);
     expect(outcome.args).toHaveLength(1);
-    expect(outcome.args[0]).toBeInstanceOf(Error);
-    expect((outcome.args[0] as NodeJS.ErrnoException).code).toBe(
-      "MODULE_NOT_FOUND"
+    const error = outcome.args[0];
+    expect(error).toBeInstanceOf(ReactAdapterError);
+    const adapterError = error as ReactAdapterError;
+    expect(adapterError.code).toBe("ERR_REACT_ADAPTER_TEMPLATE_NOT_FOUND");
+    expect(adapterError.template).toBe("does-not-exist");
+    expect(adapterError.searched).toEqual(
+      [".js", ".cjs", ".mjs"].map((ext) =>
+        path.join(FIXTURES, "does-not-exist" + ext)
+      )
     );
     expect(outcome.html).toBeUndefined();
   });
 
-  test("characterization: missing template.dir throws a TypeError synchronously", async () => {
-    // 0.2.5 behavior; CORE-02 changes it in Phase 2 and this test shows that diff.
-    let called = 0;
+  test("missing template.dir reports ERR_REACT_ADAPTER_TEMPLATE_DIR_MISSING through the callback and never throws (changed in 0.3.0, CORE-02)", async () => {
+    // 0.2.5 threw a TypeError synchronously here.
+    const received: unknown[][] = [];
+    let returned = false;
+    let calledBeforeReturn = false;
     const mail = { data: { template: "tsc-cjs", context: { body: "Body" } } };
-    expect(() =>
+    expect(() => {
       new ReactAdapter().compile(
         mail,
-        () => {
-          called += 1;
+        (...args: unknown[]) => {
+          if (!returned) {
+            calledBeforeReturn = true;
+          }
+          received.push(args);
         },
         {}
-      )
-    ).toThrow(TypeError);
+      );
+      returned = true;
+    }).not.toThrow();
+    expect(calledBeforeReturn).toBe(false);
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(called).toBe(0);
+    expect(received).toHaveLength(1);
+    expect(received[0]).toHaveLength(1);
+    const error = received[0][0];
+    expect(error).toBeInstanceOf(ReactAdapterError);
+    const adapterError = error as ReactAdapterError;
+    expect(adapterError.code).toBe("ERR_REACT_ADAPTER_TEMPLATE_DIR_MISSING");
+    expect(adapterError.template).toBe("tsc-cjs");
+    expect(adapterError.searched).toBeUndefined();
   });
 
   test("characterization: SWC-compiled CJS template with a default getter", async () => {

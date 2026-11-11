@@ -6,6 +6,8 @@ import { MailerOptions, TemplateAdapter } from "@nestjs-modules/mailer";
 import { Options, render } from "@react-email/render";
 import type { ComponentType } from "react";
 
+import { locateTemplate } from "./template.lookup";
+
 type TemplateComponent = ComponentType<Record<string, unknown>>;
 
 type TemplateMail = {
@@ -53,27 +55,23 @@ export class ReactAdapter implements TemplateAdapter {
     Object.assign(this.config, config);
   }
 
+  // All work lives here so that nothing can throw synchronously out of compile().
+  private async run(mail: unknown, options: MailerOptions): Promise<void> {
+    const { context, template } = (mail as TemplateMail).data;
+    const file = await locateTemplate(template, options?.template);
+    const Comp = await loadTemplate(file);
+    const html = await render(<Comp {...context} />, this.config);
+    (mail as TemplateMail).data.html = html;
+  }
+
   public compile(
     mail: unknown,
     callback: (err?: unknown) => unknown,
     options: MailerOptions
   ): void {
-    const { context, template } = (mail as TemplateMail).data;
-    const templateExt = path.extname(template) || ".js";
-    const templateName = path.basename(template, templateExt);
-    const templateDir = path.isAbsolute(template)
-      ? path.dirname(template)
-      : path.join(options.template!.dir!, path.dirname(template));
-    const templatePath = path.join(templateDir, templateName + templateExt);
-
-    loadTemplate(templatePath)
-      .then((Comp) => render(<Comp {...context} />, this.config))
-      .then((html) => {
-        (mail as TemplateMail).data.html = html;
-      })
-      .then(
-        () => callback(),
-        (error: unknown) => callback(error)
-      );
+    this.run(mail, options).then(
+      () => callback(),
+      (error: unknown) => callback(error)
+    );
   }
 }
