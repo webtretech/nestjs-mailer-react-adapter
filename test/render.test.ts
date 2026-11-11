@@ -7,6 +7,7 @@ import type { MailerOptions } from "@nestjs-modules/mailer";
 import { describe, expect, test } from "vitest";
 
 import { ReactAdapter, ReactAdapterError } from "../src";
+import { compileTemplate, expectAdapterError } from "./helpers";
 
 const FIXTURES = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -74,19 +75,6 @@ async function expectRender(
   expect(outcome.calls).toBe(1);
   expect(outcome.args).toEqual([]);
   expect(outcome.html).toBe(expected);
-}
-
-async function expectElementTypeError(template: string): Promise<void> {
-  const outcome = await run(
-    new ReactAdapter(),
-    template,
-    mailerOptions(FIXTURES)
-  );
-  expect(outcome.calls).toBe(1);
-  expect(outcome.args).toHaveLength(1);
-  expect(outcome.args[0]).toBeInstanceOf(Error);
-  expect((outcome.args[0] as Error).message).toMatch(/Element type is invalid/);
-  expect(outcome.html).toBeUndefined();
 }
 
 describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => {
@@ -184,12 +172,38 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
     await expectRender("esm-pkg/welcome", "esm-pkg-welcome");
   });
 
-  test("characterization: CJS template with exports.default and no __esModule fails with Element type is invalid", async () => {
-    await expectElementTypeError("exports-default-no-esmodule");
+  test("CJS template with exports.default and no __esModule fails with ERR_REACT_ADAPTER_INVALID_EXPORT naming the shape (changed in 0.3.0, D-28)", async () => {
+    const outcome = await compileTemplate(
+      "exports-default-no-esmodule",
+      mailerOptions(FIXTURES)
+    );
+    const error = expectAdapterError(
+      outcome,
+      "ERR_REACT_ADAPTER_INVALID_EXPORT"
+    );
+    expect(error.template).toBe("exports-default-no-esmodule");
+    expect(error.path).toBe(
+      path.join(FIXTURES, "exports-default-no-esmodule.js")
+    );
+    expect(error.message).toMatch(/exports\.default/);
+    expect(error.message).toMatch(/__esModule/);
+    expect(outcome.html).toBeUndefined();
   });
 
-  test("characterization: ESM template with no default export fails with Element type is invalid", async () => {
-    await expectElementTypeError("named-only.mjs");
+  test("ESM template with no default export fails with ERR_REACT_ADAPTER_INVALID_EXPORT listing its exports (changed in 0.3.0, CORE-05)", async () => {
+    const outcome = await compileTemplate(
+      "named-only.mjs",
+      mailerOptions(FIXTURES)
+    );
+    const error = expectAdapterError(
+      outcome,
+      "ERR_REACT_ADAPTER_INVALID_EXPORT"
+    );
+    expect(error.template).toBe("named-only.mjs");
+    expect(error.path).toBe(path.join(FIXTURES, "named-only.mjs"));
+    expect(error.message).toMatch(/no default export/);
+    expect(error.message).toMatch(/Welcome/);
+    expect(outcome.html).toBeUndefined();
   });
 
   // Exercises loadTemplate's import() fallback: require() throws ERR_REQUIRE_ASYNC_MODULE for top-level await.

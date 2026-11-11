@@ -1,49 +1,13 @@
-import { createRequire } from "node:module";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
-
 import { MailerOptions, TemplateAdapter } from "@nestjs-modules/mailer";
 import { Options, render } from "@react-email/render";
-import type { ComponentType } from "react";
 
+import { REACT_ADAPTER_ERROR_CODES, ReactAdapterError } from "./adapter.errors";
+import { describeExport, isRenderable, loadTemplate } from "./template.loader";
 import { locateTemplate } from "./template.lookup";
-
-type TemplateComponent = ComponentType<Record<string, unknown>>;
 
 type TemplateMail = {
   data: { template: string; context?: Record<string, unknown>; html?: string };
 };
-
-function isEsModule(mod: unknown): mod is { default: unknown } {
-  return typeof mod === "object" && mod !== null && "__esModule" in mod;
-}
-
-function isRequireEsmError(error: unknown): boolean {
-  if (typeof error !== "object" || error === null || !("code" in error)) {
-    return false;
-  }
-  return (
-    error.code === "ERR_REQUIRE_ESM" ||
-    error.code === "ERR_REQUIRE_ASYNC_MODULE"
-  );
-}
-
-async function loadTemplate(file: string): Promise<TemplateComponent> {
-  // createRequire rejects a relative path, so resolve against process.cwd() first, as 0.2.5 did implicitly.
-  const absolute = path.resolve(file);
-  try {
-    const mod: unknown = createRequire(absolute)(absolute);
-    return (isEsModule(mod) ? mod.default : mod) as TemplateComponent;
-  } catch (error) {
-    if (!isRequireEsmError(error)) {
-      throw error;
-    }
-    const ns = (await import(pathToFileURL(absolute).href)) as {
-      default: TemplateComponent;
-    };
-    return ns.default;
-  }
-}
 
 export class ReactAdapter implements TemplateAdapter {
   private config: Options = {
@@ -59,7 +23,15 @@ export class ReactAdapter implements TemplateAdapter {
   private async run(mail: unknown, options: MailerOptions): Promise<void> {
     const { context, template } = (mail as TemplateMail).data;
     const file = await locateTemplate(template, options?.template);
-    const Comp = await loadTemplate(file);
+    const { value, exportNames } = await loadTemplate(file);
+    if (!isRenderable(value)) {
+      throw new ReactAdapterError(
+        REACT_ADAPTER_ERROR_CODES.INVALID_EXPORT,
+        `Template "${template}" (${file}) does not default-export a React component; found ${describeExport(value, exportNames)}.`,
+        { template, path: file }
+      );
+    }
+    const Comp = value;
     const html = await render(<Comp {...context} />, this.config);
     (mail as TemplateMail).data.html = html;
   }
