@@ -168,7 +168,8 @@ export async function locateTemplate(
       throw loadFailed(template, candidate, failure.cause);
     }
     if (await isFile(location, candidate, template)) {
-      return candidate;
+      // D-22: the file that was verified is the file that is loaded.
+      return location;
     }
   }
   if (firstOutside !== undefined) {

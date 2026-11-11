@@ -1,6 +1,5 @@
 import fs from "node:fs/promises";
 import { createRequire } from "node:module";
-import os from "node:os";
 import path from "node:path";
 
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
@@ -10,6 +9,7 @@ import {
   compileOnce,
   compileTemplate,
   expectAdapterError,
+  makeTempRoot,
   writeTemplate,
 } from "./helpers";
 
@@ -19,7 +19,7 @@ const REACT = createRequire(import.meta.url).resolve("react");
 let dir: string;
 
 beforeAll(async () => {
-  dir = await fs.mkdtemp(path.join(os.tmpdir(), "react-adapter-loader-"));
+  dir = await makeTempRoot("react-adapter-loader-");
 });
 
 afterAll(async () => {

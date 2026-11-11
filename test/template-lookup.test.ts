@@ -12,6 +12,7 @@ import {
   compileOnce,
   compileTemplate,
   expectAdapterError,
+  makeLink,
   writeTemplate,
 } from "./helpers";
 import type { Outcome } from "./helpers";
@@ -535,15 +536,58 @@ describe("names, codes and failures", () => {
     expect(new Set(codes).size).toBe(10);
   });
 
-  test("a stat failure other than not-here is TEMPLATE_LOAD_FAILED with the cause", async () => {
-    const name = "a".repeat(5000);
+  test("a stat failure other than not-here is TEMPLATE_LOAD_FAILED with the cause", async ({
+    skip,
+  }) => {
+    // A two-link symlink loop fails with ELOOP on every OS (a 5000-character name does not).
+    await fs.mkdir(dir("loops"), { recursive: true });
+    const linked =
+      (await makeLink(
+        dir("loops/loop-b.js"),
+        dir("loops/loop-a.js"),
+        "file"
+      )) &&
+      (await makeLink(dir("loops/loop-a.js"), dir("loops/loop-b.js"), "file"));
+    if (!linked) {
+      skip("symlinks cannot be created on this host");
+    }
+    const name = "loop-a";
     const error = expectAdapterError(
-      await compileTemplate(name, options(dir("empty"))),
+      await compileTemplate(name, options(dir("loops"))),
+      "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED"
+    );
+    expect(error.template).toBe(name);
+    expect(error.path).toBe(path.resolve(dir("loops"), "loop-a.js"));
+    expect(error.cause).toBeInstanceOf(Error);
+    expect(error.cause).toMatchObject({ code: "ELOOP" });
+  });
+
+  test("an over-long name component fails once through the callback and never throws", async () => {
+    const name = "a".repeat(5000);
+    const outcome = await compileTemplate(name, options(dir("empty")));
+    expect(outcome.calls).toBe(1);
+    expect(outcome.threw).toBeUndefined();
+    expect(outcome.early).toBe(false);
+    if (process.platform === "win32") {
+      // How Windows reports an over-long component is decided by the CI run: either outcome is fine.
+      expect(outcome.args).toHaveLength(1);
+      const [first] = outcome.args;
+      const code =
+        typeof first === "object" && first !== null && "code" in first
+          ? first.code
+          : undefined;
+      expect([
+        "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED",
+        "ERR_REACT_ADAPTER_TEMPLATE_NOT_FOUND",
+      ]).toContain(code);
+      return;
+    }
+    const error = expectAdapterError(
+      outcome,
       "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED"
     );
     expect(error.template).toBe(name);
     expect(error.path).toBe(path.resolve(dir("empty"), name + ".js"));
-    expect(error.cause).toBeInstanceOf(Error);
   });
 
   test("lookup keeps no cache: a template created after a failed send renders on the next send", async () => {

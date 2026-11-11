@@ -22,6 +22,7 @@ const NOT_FOUND = "ERR_REACT_ADAPTER_TEMPLATE_NOT_FOUND";
 let base = "";
 let realBase = "";
 let linksOk = true;
+const COUNTER_KEY = "__reactAdapterConfinementCounted";
 let caseInsensitive = false;
 
 const at = (...parts: string[]): string => path.join(base, ...parts);
@@ -62,6 +63,20 @@ beforeAll(async () => {
   await put("root/sub/x.js", "M-root-sub-x");
   await put("root/w.cjs", "M-root-w-cjs");
   await put("root/w2.js", "M-root-w2-js");
+  await fs.writeFile(
+    at("root", "not-component.js"),
+    'module.exports = "text";\n'
+  );
+  await fs.writeFile(
+    at("root", "throws-render.js"),
+    'module.exports = function Template() { throw new Error("render boom"); };\n'
+  );
+  await fs.writeFile(
+    at("root", "counted.js"),
+    `globalThis[${JSON.stringify(COUNTER_KEY)}] = (globalThis[${JSON.stringify(COUNTER_KEY)}] ?? 0) + 1;
+module.exports = function Template(props) { return "M-counted:" + props.body; };
+`
+  );
   await put("out/secret.js", "M-out-secret");
   await put("out/t.js", "M-out-t");
   await put("root-evil/evil.js", "M-root-evil");
@@ -406,6 +421,47 @@ describe("template confinement by real location", () => {
     const looped = await resolveRealLocation(at("root", "loop-a.js"));
     expect(looped.location).toBe(real("root", "loop-a.js"));
     expect(looped.failure?.cause).toMatchObject({ code: "ELOOP" });
+  });
+
+  test("the verified real path is the loaded path: error.path is the real path on INVALID_EXPORT and RENDER_FAILED (D-22)", async ({
+    skip,
+  }) => {
+    needLinks(skip);
+    const viaLink = options(at("current"));
+    const invalid = expectAdapterError(
+      await compileTemplate("not-component", viaLink),
+      "ERR_REACT_ADAPTER_INVALID_EXPORT"
+    );
+    expect(invalid.path).toBe(path.join(realBase, "root", "not-component.js"));
+    const render = expectAdapterError(
+      await compileTemplate("throws-render", viaLink),
+      "ERR_REACT_ADAPTER_RENDER_FAILED"
+    );
+    expect(render.path).toBe(path.join(realBase, "root", "throws-render.js"));
+  });
+
+  test("a template reached through a symlinked root and through its real path is evaluated once", async ({
+    skip,
+  }) => {
+    needLinks(skip);
+    Reflect.deleteProperty(globalThis, COUNTER_KEY);
+    try {
+      expectRendered(
+        await compileTemplate("counted", options(at("current"))),
+        "M-counted"
+      );
+      expectRendered(
+        await compileTemplate("counted", options(path.join(realBase, "root"))),
+        "M-counted"
+      );
+      expectRendered(
+        await compileTemplate("counted", options(at("root"))),
+        "M-counted"
+      );
+      expect(Reflect.get(globalThis, COUNTER_KEY)).toBe(1);
+    } finally {
+      Reflect.deleteProperty(globalThis, COUNTER_KEY);
+    }
   });
 
   test.each([
