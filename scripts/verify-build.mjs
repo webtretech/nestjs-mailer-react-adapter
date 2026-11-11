@@ -289,7 +289,9 @@ for (const entry of entries) {
       }
     };
 
-    for (const name of ["../../package", "../../scripts/verify-build.mjs"]) {
+    // The second name is an existing file outside the root. It is the inert test/fixtures-outside/inert.mjs
+    // (not this script) so that a confinement regression loads something harmless.
+    for (const name of ["../../package", "../fixtures-outside/inert.mjs"]) {
       expectOutside(await compileOnce(ReactAdapter, name), name);
     }
     expectRendered(
