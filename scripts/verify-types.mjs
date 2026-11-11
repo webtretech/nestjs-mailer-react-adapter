@@ -338,29 +338,46 @@ try {
   const canary = checkCanary(dir);
   const { programs, checks } = checkProbes(dir);
 
-  const { checker, symbol, anchor } = moduleOf(
-    programs.node16,
-    path.join(dir, "esm.mts"),
-    packageName
-  );
-  const { findings, exportNames } = findAny(
-    checker,
-    symbol,
-    anchor,
-    path.join(realpathSync(path.join(root, "dist")))
-  );
-  if (findings.length > 0) {
-    fail(`any is reachable from the public API:\n  ${findings.join("\n  ")}`);
-  }
-  if (exportNames.join(",") !== [...expectedExports].sort().join(",")) {
-    fail(
-      `export names are ${exportNames.join(", ")}, expected ${expectedExports.join(", ")}`
+  // Both declaration files are walked: the node16 ESM probe resolves index.d.mts, the CJS probe index.d.cts.
+  const distRoot = realpathSync(path.join(root, "dist"));
+  const walked = [];
+  for (const [probeFile, declarationFile] of [
+    ["esm.mts", "index.d.mts"],
+    ["cjs.cts", "index.d.cts"],
+  ]) {
+    const { checker, symbol, anchor } = moduleOf(
+      programs.node16,
+      path.join(dir, probeFile),
+      packageName
     );
+    const resolved = symbol.declarations?.[0]?.getSourceFile().fileName;
+    if (resolved === undefined || path.basename(resolved) !== declarationFile) {
+      fail(
+        `${probeFile} resolved ${resolved ?? "nothing"}, expected ${declarationFile}`
+      );
+    }
+    const { findings, exportNames } = findAny(
+      checker,
+      symbol,
+      anchor,
+      distRoot
+    );
+    if (findings.length > 0) {
+      fail(
+        `any is reachable from the public API in ${declarationFile}:\n  ${findings.join("\n  ")}`
+      );
+    }
+    if (exportNames.join(",") !== [...expectedExports].sort().join(",")) {
+      fail(
+        `export names in ${declarationFile} are ${exportNames.join(", ")}, expected ${expectedExports.join(", ")}`
+      );
+    }
+    walked.push(`${exportNames.length} exports of ${declarationFile}`);
   }
   checkDeclarations();
 
   console.log(
-    `verify-types: ok ${checks} probe checks in ${configurations.length} configurations, ${exportNames.length} exports walked with no any, d.ts files free of render imports, canary reported ${canary}`
+    `verify-types: ok ${checks} probe checks in ${configurations.length} configurations, ${walked.join(" and ")} walked with no any, d.ts files free of render imports, canary reported ${canary}`
   );
 } catch (error) {
   console.error(
