@@ -327,7 +327,9 @@ try {
   }
 
   created = mkdtempSync(path.join(os.tmpdir(), "react-adapter-types-"));
-  const dir = realpathSync(created);
+  // The native realpath expands Windows 8.3 short names (RUNNER~1), as TypeScript's own file names do;
+  // the JavaScript one does not, and the own-root prefix test in findAny would then match nothing.
+  const dir = realpathSync.native(created);
   const scope = path.join(dir, "node_modules", "@webtre");
   mkdirSync(scope, { recursive: true });
   symlinkSync(
@@ -343,7 +345,7 @@ try {
   const { programs, checks } = checkProbes(dir);
 
   // Both declaration files are walked: the node16 ESM probe resolves index.d.mts, the CJS probe index.d.cts.
-  const distRoot = realpathSync(path.join(root, "dist"));
+  const distRoot = realpathSync.native(path.join(root, "dist"));
   const walked = [];
   for (const [probeFile, declarationFile] of [
     ["esm.mts", "index.d.mts"],
