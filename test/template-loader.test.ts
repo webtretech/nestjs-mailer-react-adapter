@@ -2,13 +2,15 @@ import fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 
 import { ReactAdapter, ReactAdapterError } from "../src";
 import {
   compileOnce,
   compileTemplate,
   expectAdapterError,
+  isCiEnvironment,
+  makeLink,
   makeTempRoot,
   writeTemplate,
 } from "./helpers";
@@ -370,5 +372,82 @@ describe("test helper compileOnce", () => {
       {}
     );
     expect(outcome.calls).toBe(2);
+  });
+});
+
+describe("test helper makeLink", () => {
+  test("a link inside a directory that does not exist rejects with the path and code, it is not skipped", async () => {
+    const target = await write(
+      "link-target-enoent.js",
+      "module.exports = 1;\n"
+    );
+    const link = path.join(dir, "no-such-directory", "link.js");
+    const error = await makeLink(target, link, "file").then(
+      () => undefined,
+      (failure: unknown) => failure
+    );
+    expect(error).toBeInstanceOf(Error);
+    const message = error instanceof Error ? error.message : "";
+    expect(message).toContain(link);
+    expect(message).toContain("ENOENT");
+  });
+
+  test("a link path that already exists rejects with the path and code, it is not skipped", async () => {
+    const target = await write(
+      "link-target-eexist.js",
+      "module.exports = 1;\n"
+    );
+    const link = await write("link-exists.js", "module.exports = 2;\n");
+    const error = await makeLink(target, link, "file").then(
+      () => undefined,
+      (failure: unknown) => failure
+    );
+    expect(error).toBeInstanceOf(Error);
+    const message = error instanceof Error ? error.message : "";
+    expect(message).toContain(link);
+    expect(message).toContain("EEXIST");
+  });
+
+  // CI throws on any link failure, so the skip behaviour can only be observed off CI.
+  test.skipIf(isCiEnvironment(process.env))(
+    "a permission failure off CI skips instead of throwing",
+    async () => {
+      const symlink = vi
+        .spyOn(fs, "symlink")
+        .mockRejectedValue(
+          Object.assign(new Error("denied"), { code: "EPERM" })
+        );
+      try {
+        await expect(
+          makeLink(path.join(dir, "a.js"), path.join(dir, "b.js"), "file")
+        ).resolves.toBe(false);
+      } finally {
+        symlink.mockRestore();
+      }
+    }
+  );
+
+  test("CI is detected from GITHUB_ACTIONS or from a CI value that is not empty, 0 or false", () => {
+    for (const env of [
+      { CI: "true" },
+      { CI: "1" },
+      { CI: "yes" },
+      { GITHUB_ACTIONS: "true" },
+      { GITHUB_ACTIONS: "true", CI: "false" },
+    ]) {
+      expect(isCiEnvironment(env), JSON.stringify(env)).toBe(true);
+    }
+    for (const env of [
+      {},
+      { CI: "" },
+      { CI: "0" },
+      { CI: "false" },
+      { CI: "FALSE" },
+      { CI: "False" },
+      { GITHUB_ACTIONS: "false" },
+      { GITHUB_ACTIONS: "" },
+    ]) {
+      expect(isCiEnvironment(env), JSON.stringify(env)).toBe(false);
+    }
   });
 });

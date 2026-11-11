@@ -153,6 +153,14 @@ function errorCode(error: unknown): string | undefined {
   return undefined;
 }
 
+// CI is on when GITHUB_ACTIONS is "true" or CI is set to anything but "", "0" or "false" (any case).
+export function isCiEnvironment(
+  env: Record<string, string | undefined>
+): boolean {
+  const ci = (env["CI"] ?? "").toLowerCase();
+  return env["GITHUB_ACTIONS"] === "true" || !["", "0", "false"].includes(ci);
+}
+
 let linkSkipNoted = false;
 
 // Outside CI the symlink tests skip when links cannot be created. The skip reason is easy to miss in the
@@ -168,8 +176,8 @@ function noteSkippedLinks(reason: string): void {
 }
 
 // Creates a symlink with an absolute target. A directory link on Windows falls back to a junction.
-// When a link cannot be created, CI fails loudly (no symlink test may pass vacuously); elsewhere it
-// returns false so the caller can skip with a visible note.
+// When a link cannot be created, CI fails loudly (no symlink test may pass vacuously); elsewhere a permission
+// failure (EPERM, EACCES) returns false so the caller can skip with a visible note, and any other error throws.
 export async function makeLink(
   target: string,
   link: string,
@@ -191,13 +199,19 @@ export async function makeLink(
       }
     }
   } catch (error) {
-    if (process.env.CI || process.env.GITHUB_ACTIONS) {
+    const code = errorCode(error);
+    // Only a permission failure can mean the host cannot link; any other error is a bug in the test and is
+    // rethrown on every host, with the link path and the code in the message.
+    if (
+      isCiEnvironment(process.env) ||
+      (code !== "EPERM" && code !== "EACCES")
+    ) {
       throw new Error(
-        `Could not create the ${kind} link ${link} -> ${target}: ${errorCode(error) ?? String(error)}`,
+        `Could not create the ${kind} link ${link} -> ${target}: ${code ?? String(error)}`,
         { cause: error }
       );
     }
-    noteSkippedLinks(errorCode(error) ?? String(error));
+    noteSkippedLinks(code);
     return false;
   }
   expect((await fs.lstat(link)).isSymbolicLink()).toBe(true);
