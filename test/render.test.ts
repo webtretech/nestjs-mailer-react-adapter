@@ -204,8 +204,12 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
       },
     };
     // Vitest fails the run on an unhandled rejection, so detach its listeners while this test captures one.
-    const saved = process.listeners("unhandledRejection");
+    // rawListeners keeps once-wrappers intact, so restoring them with on() does not make a once-listener permanent.
+    const saved = process.rawListeners(
+      "unhandledRejection"
+    ) as NodeJS.UnhandledRejectionListener[];
     process.removeAllListeners("unhandledRejection");
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       let calls = 0;
       let onSecondCall: () => void = () => {};
@@ -214,6 +218,10 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
       });
       const rejection = new Promise<unknown>((resolve) => {
         process.once("unhandledRejection", resolve);
+      });
+      // Bounds the wait, well under Vitest's 5s test timeout, so the body always reaches finally.
+      const timeout = new Promise<"timeout">((resolve) => {
+        timer = setTimeout(() => resolve("timeout"), 2000);
       });
       new ReactAdapter().compile(
         mail,
@@ -227,11 +235,14 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
         mailerOptions(FIXTURES)
       );
       // The rejection settles this on the fixed chain; a second callback call settles it on the old one.
-      const settled = await Promise.race([rejection, secondCall]);
+      const settled = await Promise.race([rejection, secondCall, timeout]);
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(calls).toBe(1);
       expect(settled).toBe(thrown);
+      // The throw came from the success-path callback, so the template loaded and rendered.
+      expect(mail.data.html).toBe(html("tsc-cjs"));
     } finally {
+      clearTimeout(timer);
       process.removeAllListeners("unhandledRejection");
       for (const listener of saved) {
         process.on("unhandledRejection", listener);
