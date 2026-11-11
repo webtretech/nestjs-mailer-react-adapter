@@ -285,7 +285,7 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
   });
 
   // Assigning html is part of the work before the final handler pair, so a failure there reaches callback(error) once.
-  test("a failure assigning html is reported once through callback(error)", async () => {
+  test("a failure assigning html is reported once as ERR_REACT_ADAPTER_INVALID_MAIL with the TypeError as cause (changed in 0.3.0)", async () => {
     const mail = {
       data: Object.freeze({
         template: "tsc-cjs",
@@ -306,6 +306,12 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
     });
     expect(args).toHaveLength(1);
     expect(args[0]).toHaveLength(1);
-    expect(args[0][0]).toBeInstanceOf(TypeError);
+    const [error] = args[0];
+    expect(error).toBeInstanceOf(ReactAdapterError);
+    if (!(error instanceof ReactAdapterError)) {
+      throw new Error("expected a ReactAdapterError");
+    }
+    expect(error.code).toBe("ERR_REACT_ADAPTER_INVALID_MAIL");
+    expect(error.cause).toBeInstanceOf(TypeError);
   });
 });

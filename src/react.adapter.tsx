@@ -6,6 +6,7 @@ import {
   unstableToPlainText,
 } from "@react-email/render";
 
+import { classifyMail } from "./adapter.mail";
 import {
   ReactAdapterOptions,
   ResolvedSettings,
@@ -14,15 +15,6 @@ import {
 import { REACT_ADAPTER_ERROR_CODES, ReactAdapterError } from "./adapter.errors";
 import { describeExport, isRenderable, loadTemplate } from "./template.loader";
 import { locateTemplate } from "./template.lookup";
-
-type TemplateMail = {
-  data: {
-    template: string;
-    context?: Record<string, unknown>;
-    html?: string;
-    text?: unknown;
-  };
-};
 
 export class ReactAdapter implements TemplateAdapter {
   private readonly settings: ResolvedSettings;
@@ -34,11 +26,11 @@ export class ReactAdapter implements TemplateAdapter {
   // All work lives here so that nothing can throw synchronously out of compile().
   private async run(mail: unknown, options: MailerOptions): Promise<void> {
     const { settings } = this;
-    const {
-      context,
-      template,
-      text: providedText,
-    } = (mail as TemplateMail).data;
+    const classified = classifyMail(mail);
+    if (classified.kind === "pass-through") {
+      return;
+    }
+    const { data, template, context } = classified;
     const file = await locateTemplate(template, options?.template);
     const { value, exportNames } = await loadTemplate(file, template);
     if (!isRenderable(value)) {
@@ -62,7 +54,7 @@ export class ReactAdapter implements TemplateAdapter {
       );
     }
     let text: string | undefined;
-    if (settings.text && providedText === undefined) {
+    if (settings.text && data["text"] === undefined) {
       try {
         text = settings.unstableTextConversion
           ? unstableToPlainText(raw)
@@ -88,9 +80,17 @@ export class ReactAdapter implements TemplateAdapter {
       }
     }
     // Assigned only once both parts exist, so a failure above leaves the mail untouched.
-    (mail as TemplateMail).data.html = html;
-    if (text !== undefined) {
-      (mail as TemplateMail).data.text = text;
+    try {
+      data["html"] = html;
+      if (text !== undefined) {
+        data["text"] = text;
+      }
+    } catch (cause) {
+      throw new ReactAdapterError(
+        REACT_ADAPTER_ERROR_CODES.INVALID_MAIL,
+        "mail.data could not be updated; the assignment error is in cause.",
+        { template, path: file, cause }
+      );
     }
   }
 
