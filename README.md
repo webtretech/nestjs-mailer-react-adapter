@@ -141,10 +141,9 @@ Templates are loaded once per process and cached by Node, so changes to a templa
 
 ## Security
 
-- React escapes ordinary text and attribute values that you pass through `context`, so `<`, `>`, `&` and quotes cannot start a tag or leave an attribute. Text placed inside a `<style>` or `<script>` element is not escaped as HTML text: React only rewrites the sequences that would open or close that same element, and inserts every other character, including `<`, `&` and quotes, as written. Never put user input inside those elements.
-- That protection stops at the meaning of a value. In `href`, `src`, `action` and `formAction`, React 19 replaces `javascript:` URLs, while `data:` and every other scheme pass through. Do not rely on that replacement: this package also supports React 18 (peer range `^18.0.0 || ^19.0.0`), so validate or allow-list any URL that comes from user input on every React version.
-- `dangerouslySetInnerHTML`, `srcDoc` and `style` values are inserted without sanitising; `srcDoc` and `style` get only attribute escaping, so the markup or CSS you pass reaches the page intact. Never pass user input to them.
-- Templates are code. They load only from inside `template.dir` and `template.dirs`, with symlinks resolved; names with a NUL byte or a URL scheme never load, and drive-letter and UNC names load only on Windows. `new ReactAdapter({ unsafeAllowOutsideTemplateDir: true })` is the only way to load a template from elsewhere. This guards against template names that try to escape, not against someone who can write into the template directory.
+- React escapes text and attribute values from `context`. It does not escape text inside `<style>` or `<script>`, and it does not sanitise `dangerouslySetInnerHTML`, `srcDoc` or `style`. Keep user input out of all of these.
+- Validate or allow-list URLs that come from user input (`href`, `src`, `action`, `formAction`). React 19 replaces `javascript:` URLs, but React 18 is also supported, so do not rely on it. Other schemes such as `data:` pass through.
+- Templates are code. They load only from inside `template.dir` and `template.dirs` (symlinks resolved) unless you construct `new ReactAdapter({ unsafeAllowOutsideTemplateDir: true })`. This stops template names from escaping, not someone who can write to the template directory.
 
 ## Examples
 
