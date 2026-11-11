@@ -63,7 +63,10 @@ async function importOrRequire(absolute: string): Promise<LoadedTemplate> {
       exportNames: namesOf(mod),
     };
   } catch (error) {
-    if (!isRequireEsmError(error)) {
+    // A .cjs file can never be an ES module, so this error comes from one of its dependencies and import()
+    // would evaluate the template's top level a second time before failing again. For .js the format is not
+    // reliably knowable here (package "type", syntax detection), so its fallback is knowingly left as is.
+    if (!isRequireEsmError(error) || path.extname(absolute) === ".cjs") {
       throw error;
     }
     const ns: unknown = await import(pathToFileURL(absolute).href);

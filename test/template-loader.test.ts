@@ -132,6 +132,33 @@ describe("template-loader: load failures", () => {
     expect(fixed.args).toEqual([]);
     expect(fixed.html).toContain("fixed:Body");
   });
+
+  test("template-loader: a .cjs template whose dependency needs import() is not evaluated a second time", async () => {
+    const key = "__reactAdapterCjsDependencyCounter";
+    await write(
+      "tla-dependency.mjs",
+      `await Promise.resolve();\nexport default 1;\n`
+    );
+    const file = await write(
+      "requires-tla.cjs",
+      `globalThis[${JSON.stringify(key)}] = (globalThis[${JSON.stringify(key)}] ?? 0) + 1;
+require("./tla-dependency.mjs");
+module.exports = function Template() { return "never"; };
+`
+    );
+    try {
+      const outcome = await send("requires-tla.cjs");
+      const error = expectAdapterError(
+        outcome,
+        "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED"
+      );
+      expect(error.path).toBe(file);
+      expect(error.cause).toBeInstanceOf(Error);
+      expect(Reflect.get(globalThis, key)).toBe(1);
+    } finally {
+      Reflect.deleteProperty(globalThis, key);
+    }
+  });
 });
 
 describe("template-loader: render failures", () => {
