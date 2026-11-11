@@ -78,9 +78,13 @@ function loadFailed(
   file: string,
   cause: unknown
 ): ReactAdapterError {
+  const code =
+    isRecord(cause) && typeof cause["code"] === "string"
+      ? cause["code"]
+      : "unknown error";
   return new ReactAdapterError(
     REACT_ADAPTER_ERROR_CODES.TEMPLATE_LOAD_FAILED,
-    `Could not inspect template file "${file}" for template "${template}".`,
+    `Could not inspect a candidate file for template "${messageTemplateName(template)}" (${code}); see error.path and error.cause.`,
     { template, path: file, cause }
   );
 }
@@ -127,7 +131,7 @@ export async function locateTemplate(
   if (!path.isAbsolute(template) && directories.length === 0) {
     throw new ReactAdapterError(
       REACT_ADAPTER_ERROR_CODES.TEMPLATE_DIR_MISSING,
-      `Template "${template}" is a relative name but template.dir (and template.dirs) is not set, so it cannot be resolved. Set template.dir in the mailer options.`,
+      `Template "${messageTemplateName(template)}" is a relative name but template.dir (and template.dirs) is not set, so it cannot be resolved. Set template.dir in the mailer options.`,
       { template }
     );
   }
@@ -181,7 +185,7 @@ export async function locateTemplate(
   }
   throw new ReactAdapterError(
     REACT_ADAPTER_ERROR_CODES.TEMPLATE_NOT_FOUND,
-    `Template "${template}" was not found. Searched: ${candidates.join(", ")}`,
+    `Template "${messageTemplateName(template)}" was not found; searched ${candidates.length} ${candidates.length === 1 ? "location" : "locations"}, see error.searched.`,
     { template, path: candidates[0], searched: candidates, roots }
   );
 }

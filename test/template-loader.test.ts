@@ -263,7 +263,7 @@ describe("template-loader: render failures", () => {
     }
     expect(error.message).not.toContain(secret);
     expect(error.message).toContain("throws-at-render");
-    expect(error.message).toContain(file);
+    expect(error.message).not.toContain(file);
     expect(second.html).toBeUndefined();
   });
 

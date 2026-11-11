@@ -149,6 +149,15 @@ for (const entry of entries) {
         `${where}: expected TEMPLATE_NOT_FOUND with 3 searched paths, got ${describe(error)}`
       );
     }
+    if (
+      !error.message.includes("see error.searched") ||
+      error.message.includes(fixturesDir) ||
+      error.searched.some((searched) => error.message.includes(searched))
+    ) {
+      fail(
+        `${where}: the message must point to error.searched and carry no path, got ${error.message}`
+      );
+    }
   }
 
   // Invalid names and rootless absolute names are refused through the callback from this entry too (D-06, D-20).
@@ -378,5 +387,5 @@ for (const entry of entries) {
 }
 
 console.log(
-  `verify-build: ok ${targets.length} export targets present, import() retained, CJS and ESM entries render ${fixtures.length} template shapes, report a missing template as a typed error and keep a failed ESM load failed, refuse invalid names and rootless absolute names unless opted out, and confine templates to their roots`
+  `verify-build: ok ${targets.length} export targets present, import() retained, CJS and ESM entries render ${fixtures.length} template shapes, report a missing template as a typed error, with no path in the message, and keep a failed ESM load failed, refuse invalid names and rootless absolute names unless opted out, and confine templates to their roots`
 );
