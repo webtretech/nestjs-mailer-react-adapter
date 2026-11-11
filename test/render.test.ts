@@ -91,7 +91,10 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
   });
 
   test("characterization: relative template.dir resolves against process.cwd()", async () => {
-    await expectRender("tsc-cjs", "tsc-cjs", mailerOptions("test/fixtures"));
+    // Relative to wherever the suite was started from, so the test does not depend on the start directory.
+    const relative = path.relative(process.cwd(), FIXTURES);
+    expect(path.isAbsolute(relative)).toBe(false);
+    await expectRender("tsc-cjs", "tsc-cjs", mailerOptions(relative));
   });
 
   test("characterization: pretty option renders formatted HTML", async () => {
