@@ -2,6 +2,8 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -46,6 +48,23 @@ const commonOptions = {
   types: ["node"],
   typeRoots: [path.join(root, "node_modules", "@types")],
 };
+
+const expectedExports = [
+  "HtmlToTextConfig",
+  "REACT_ADAPTER_ERROR_CODES",
+  "ReactAdapter",
+  "ReactAdapterError",
+  "ReactAdapterErrorCode",
+  "ReactAdapterOptions",
+];
+
+// The same shape as the 0.2.x htmlToTextOptions leak: a type imported from a module that does
+// not resolve is `any` once skipLibCheck hides the error.
+const canaryDeclarations = `import type { Missing } from "any-canary-missing";
+export declare class AnyCanary {
+  constructor(options?: { leak?: Missing });
+}
+`;
 
 const configurations = [
   {
@@ -93,6 +112,169 @@ function formatDiagnostics(dir, diagnostics) {
   });
 }
 
+// Reports a path for every `any` reachable from the exports of moduleSymbol through types
+// declared under ownRoot. A type declared elsewhere is checked as a reference (the type itself
+// and its type arguments) but its members are not walked: they belong to another package.
+function findAny(checker, moduleSymbol, anchor, ownRoot) {
+  const findings = [];
+  const visited = new Set();
+  const exportNames = [];
+
+  const declaredHere = (declaration) =>
+    path
+      .resolve(declaration.getSourceFile().fileName)
+      .startsWith(ownRoot + path.sep);
+  const symbolDeclaredHere = (symbol) =>
+    symbol?.declarations?.some(declaredHere) ?? false;
+  const isHidden = (declaration) =>
+    (ts.getCombinedModifierFlags(declaration) &
+      (ts.ModifierFlags.Private | ts.ModifierFlags.Protected)) !==
+      0 ||
+    (declaration.name !== undefined &&
+      ts.isPrivateIdentifier(declaration.name));
+
+  function walkSignatures(type, kind, label, where) {
+    for (const signature of checker.getSignaturesOfType(type, kind)) {
+      const declaration = signature.getDeclaration();
+      if (declaration && !declaredHere(declaration)) continue;
+      for (const parameter of signature.getParameters()) {
+        walk(
+          checker.getTypeOfSymbolAtLocation(parameter, anchor),
+          `${where}.${label}(${parameter.name})`
+        );
+      }
+      walk(checker.getReturnTypeOfSignature(signature), `${where}.${label}()`);
+    }
+  }
+
+  function walkMembers(type, where) {
+    for (const property of checker.getPropertiesOfType(type)) {
+      const declarations = property.declarations ?? [];
+      if (declarations.length > 0 && !declarations.some(declaredHere)) continue;
+      if (declarations.some(isHidden)) continue;
+      walk(
+        checker.getTypeOfSymbolAtLocation(property, anchor),
+        `${where}.${property.name}`
+      );
+    }
+    walkSignatures(type, ts.SignatureKind.Call, "call", where);
+    walkSignatures(type, ts.SignatureKind.Construct, "new", where);
+    for (const info of checker.getIndexInfosOfType(type)) {
+      walk(info.type, `${where}[index]`);
+    }
+  }
+
+  function walk(type, where) {
+    if (type.flags & ts.TypeFlags.Any) {
+      if (!findings.includes(where)) findings.push(where);
+      return;
+    }
+    if (visited.has(type)) return;
+    visited.add(type);
+    if (type.isUnionOrIntersection()) {
+      for (const member of type.types) walk(member, where);
+      return;
+    }
+    if (type.flags & ts.TypeFlags.TypeParameter) {
+      const constraint = checker.getBaseConstraintOfType(type);
+      if (constraint && constraint !== type) walk(constraint, where);
+      return;
+    }
+    for (const argument of type.aliasTypeArguments ?? []) {
+      walk(argument, `${where}<alias>`);
+    }
+    if (
+      type.flags & ts.TypeFlags.Object &&
+      type.objectFlags & ts.ObjectFlags.Reference
+    ) {
+      for (const argument of checker.getTypeArguments(type)) {
+        walk(argument, `${where}<type argument>`);
+      }
+    }
+    if (symbolDeclaredHere(type.aliasSymbol ?? type.symbol)) {
+      walkMembers(type, where);
+    }
+  }
+
+  for (const exported of checker.getExportsOfModule(moduleSymbol)) {
+    exportNames.push(exported.name);
+    const symbol =
+      exported.flags & ts.SymbolFlags.Alias
+        ? checker.getAliasedSymbol(exported)
+        : exported;
+    if (symbol.flags & ts.SymbolFlags.Value) {
+      walk(
+        checker.getTypeOfSymbolAtLocation(symbol, anchor),
+        `${exported.name}`
+      );
+    }
+    if (
+      symbol.flags &
+      (ts.SymbolFlags.Class |
+        ts.SymbolFlags.Interface |
+        ts.SymbolFlags.TypeAlias |
+        ts.SymbolFlags.Enum)
+    ) {
+      walk(checker.getDeclaredTypeOfSymbol(symbol), `${exported.name}`);
+    }
+  }
+  return { findings, exportNames: exportNames.sort() };
+}
+
+// Resolves an import of the probe to its module symbol, with the import as the location anchor.
+function moduleOf(program, file, specifier) {
+  const checker = program.getTypeChecker();
+  const sourceFile = program.getSourceFile(file);
+  const declaration = sourceFile?.statements.find(
+    (statement) =>
+      ts.isImportDeclaration(statement) &&
+      ts.isStringLiteral(statement.moduleSpecifier) &&
+      statement.moduleSpecifier.text === specifier
+  );
+  const symbol = declaration
+    ? checker.getSymbolAtLocation(declaration.moduleSpecifier)
+    : undefined;
+  if (!declaration || !symbol) {
+    fail(`${path.basename(file)}: cannot resolve ${specifier}`);
+  }
+  return { checker, symbol, anchor: declaration };
+}
+
+function checkCanary(dir) {
+  const canaryDir = path.join(dir, "node_modules", "any-canary");
+  mkdirSync(canaryDir, { recursive: true });
+  writeFileSync(
+    path.join(canaryDir, "package.json"),
+    JSON.stringify({ name: "any-canary", types: "index.d.ts" })
+  );
+  writeFileSync(path.join(canaryDir, "index.d.ts"), canaryDeclarations);
+  const file = path.join(dir, "canary.mts");
+  writeFileSync(
+    file,
+    'import { AnyCanary } from "any-canary";\nexport { AnyCanary };\n'
+  );
+  const program = createProgram(dir, ["canary.mts"], configurations[0].options);
+  const { checker, symbol, anchor } = moduleOf(program, file, "any-canary");
+  const { findings } = findAny(checker, symbol, anchor, canaryDir);
+  if (findings.length !== 1 || !findings[0].includes("leak")) {
+    fail(
+      `walker is blind: expected exactly one canary finding naming leak, got ${JSON.stringify(findings)}`
+    );
+  }
+  return findings[0];
+}
+
+function checkDeclarations() {
+  for (const entry of ["index.d.cts", "index.d.mts"]) {
+    const text = readFileSync(path.join(root, "dist", entry), "utf8");
+    if (text.includes("@react-email/")) {
+      fail(
+        `dist/${entry} references the render package, consumers would inherit its types`
+      );
+    }
+  }
+}
+
 function checkProbes(dir) {
   const deliberateLine =
     probe.split("\n").findIndex((line) => line === deliberate) + 1;
@@ -135,8 +317,9 @@ for (const entry of ["index.d.cts", "index.d.mts"]) {
   }
 }
 
-const dir = mkdtempSync(path.join(os.tmpdir(), "react-adapter-types-"));
+const created = mkdtempSync(path.join(os.tmpdir(), "react-adapter-types-"));
 try {
+  const dir = realpathSync(created);
   const scope = path.join(dir, "node_modules", "@webtre");
   mkdirSync(scope, { recursive: true });
   symlinkSync(
@@ -148,10 +331,33 @@ try {
     writeFileSync(path.join(dir, file), probe);
   }
 
-  const { checks } = checkProbes(dir);
+  const canary = checkCanary(dir);
+  const { programs, checks } = checkProbes(dir);
+
+  const { checker, symbol, anchor } = moduleOf(
+    programs.node16,
+    path.join(dir, "esm.mts"),
+    packageName
+  );
+  const { findings, exportNames } = findAny(
+    checker,
+    symbol,
+    anchor,
+    path.join(realpathSync(path.join(root, "dist")))
+  );
+  if (findings.length > 0) {
+    fail(`any is reachable from the public API:\n  ${findings.join("\n  ")}`);
+  }
+  if (exportNames.join(",") !== [...expectedExports].sort().join(",")) {
+    fail(
+      `export names are ${exportNames.join(", ")}, expected ${expectedExports.join(", ")}`
+    );
+  }
+  checkDeclarations();
+
   console.log(
-    `verify-types: ok ${checks} probe checks in ${configurations.length} configurations`
+    `verify-types: ok ${checks} probe checks in ${configurations.length} configurations, ${exportNames.length} exports walked with no any, d.ts files free of render imports, canary reported ${canary}`
   );
 } finally {
-  rmSync(dir, { recursive: true, force: true });
+  rmSync(created, { recursive: true, force: true });
 }
