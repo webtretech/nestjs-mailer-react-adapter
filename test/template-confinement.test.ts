@@ -1,0 +1,272 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
+import type { MailerOptions } from "@nestjs-modules/mailer";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
+
+import {
+  compileTemplate,
+  expectAdapterError,
+  makeLink,
+  writeTemplate,
+} from "./helpers";
+import type { Outcome } from "./helpers";
+
+const OUTSIDE = "ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT";
+const NOT_FOUND = "ERR_REACT_ADAPTER_TEMPLATE_NOT_FOUND";
+
+// `base` is deliberately NOT realpath'd: on macOS os.tmpdir() sits under the /var -> /private/var
+// alias, so local runs exercise an aliased spelling of every path below. `realBase` is its real path.
+let base = "";
+let realBase = "";
+let linksOk = true;
+let caseInsensitive = false;
+
+const at = (...parts: string[]): string => path.join(base, ...parts);
+
+function options(templateDir?: string, dirs?: string[]): MailerOptions {
+  return { template: { dir: templateDir, dirs } };
+}
+
+function expectRendered(outcome: Outcome, marker: string): void {
+  expect(outcome.calls).toBe(1);
+  expect(outcome.threw).toBeUndefined();
+  expect(outcome.early).toBe(false);
+  expect(outcome.args).toEqual([]);
+  expect(outcome.html).toEqual(expect.stringContaining(`${marker}:Body`));
+}
+
+async function put(relative: string, marker: string): Promise<void> {
+  const file = at(relative);
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  await writeTemplate(file, marker);
+}
+
+async function link(
+  target: string,
+  linkPath: string,
+  kind: "file" | "dir"
+): Promise<void> {
+  await fs.mkdir(path.dirname(linkPath), { recursive: true });
+  const created = await makeLink(target, linkPath, kind);
+  linksOk = linksOk && created;
+}
+
+beforeAll(async () => {
+  base = await fs.mkdtemp(path.join(os.tmpdir(), "react-adapter-confine-"));
+  realBase = await fs.realpath(base);
+
+  await put("root/ok.js", "M-root-ok");
+  await put("root/sub/x.js", "M-root-sub-x");
+  await put("root/w.cjs", "M-root-w-cjs");
+  await put("root/w2.js", "M-root-w2-js");
+  await put("out/secret.js", "M-out-secret");
+  await put("out/t.js", "M-out-t");
+  await put("root-evil/evil.js", "M-root-evil");
+  await put("b/b.js", "M-b-b");
+  await put("b/shared/t.js", "M-b-shared-t");
+  await put("b/shared/u.js", "M-b-shared-u");
+  await fs.mkdir(at("root", "nested.js"), { recursive: true });
+  await fs.mkdir(at("tree.js"), { recursive: true });
+
+  await link(at("out"), at("root", "link-out"), "dir");
+  await link(at("out"), at("root", "shared"), "dir");
+  await link(at("out", "secret.js"), at("root", "link-out-file.js"), "file");
+  await link(at("root", "sub", "x.js"), at("root", "link-in.js"), "file");
+  await link(at("out", "missing.js"), at("root", "dangling-out.js"), "file");
+  await link(at("root"), at("current"), "dir");
+  await link(at("root"), at("alias"), "dir");
+  await link(at("out", "secret.js"), at("root", "w.js"), "file");
+  await link(at("out", "secret.js"), at("root", "w2.cjs"), "file");
+  await link(at("root", "loop-b.js"), at("root", "loop-a.js"), "file");
+  await link(at("root", "loop-a.js"), at("root", "loop-b.js"), "file");
+
+  await fs.writeFile(at("case-probe.tmp"), "");
+  caseInsensitive = await fs.stat(at("CASE-PROBE.TMP")).then(
+    () => true,
+    () => false
+  );
+});
+
+afterAll(async () => {
+  await fs.rm(base, { recursive: true, force: true, maxRetries: 3 });
+});
+
+// Skips the calling test, visibly, when this host could not create the symlink fixtures.
+function needLinks(skip: (note?: string) => never): void {
+  if (!linksOk) {
+    skip("symlinks cannot be created on this host");
+  }
+}
+
+describe("template confinement by real location", () => {
+  test("a ../ escape is TEMPLATE_OUTSIDE_ROOT whether or not the target exists (D-01, D-03)", async () => {
+    const rootDir = at("root");
+    for (const name of ["../out/secret", "../out/nope"]) {
+      const error = expectAdapterError(
+        await compileTemplate(name, options(rootDir)),
+        OUTSIDE
+      );
+      expect(error.template).toBe(name);
+      expect(error.path).toBe(at("out", `${path.basename(name)}.js`));
+      expect(error.roots).toEqual([path.resolve(rootDir)]);
+      expect(error.searched).toBeUndefined();
+    }
+  });
+
+  test("an absolute name outside every root is TEMPLATE_OUTSIDE_ROOT whether or not the file exists (D-01, D-02)", async () => {
+    for (const name of [at("out", "secret.js"), at("out", "none.js")]) {
+      const error = expectAdapterError(
+        await compileTemplate(name, options(at("root"))),
+        OUTSIDE
+      );
+      expect(error.template).toBe(name);
+      expect(error.message).not.toContain(base);
+      expect(error.message).not.toContain(realBase);
+      expect(error.roots).toEqual([at("root")]);
+    }
+  });
+
+  test("a name that stays inside through .. or . segments loads (D-03)", async () => {
+    expectRendered(
+      await compileTemplate("sub/../ok", options(at("root"))),
+      "M-root-ok"
+    );
+    expectRendered(
+      await compileTemplate("./ok", options(at("root"))),
+      "M-root-ok"
+    );
+    expectRendered(
+      await compileTemplate("sub//x", options(at("root"))),
+      "M-root-sub-x"
+    );
+  });
+
+  test("an absolute name inside a root loads through the root, its real path or an alias (D-02, D-17)", async ({
+    skip,
+  }) => {
+    needLinks(skip);
+    expectRendered(
+      await compileTemplate(at("root", "ok.js"), options(at("root"))),
+      "M-root-ok"
+    );
+    expectRendered(
+      await compileTemplate(
+        path.join(realBase, "root", "ok.js"),
+        options(at("root"))
+      ),
+      "M-root-ok"
+    );
+    expectRendered(
+      await compileTemplate(at("alias", "ok.js"), options(at("root"))),
+      "M-root-ok"
+    );
+    expectRendered(
+      await compileTemplate(at("root", "ok.js"), options(at("alias"))),
+      "M-root-ok"
+    );
+  });
+
+  test("letter case of a root or name is decided by the filesystem, not by the adapter (D-17)", async () => {
+    if (caseInsensitive) {
+      expectRendered(
+        await compileTemplate("ok", options(at("ROOT"))),
+        "M-root-ok"
+      );
+      expectRendered(
+        await compileTemplate(at("root", "ok.js"), options(at("ROOT"))),
+        "M-root-ok"
+      );
+      expectRendered(
+        await compileTemplate(at("ROOT", "ok.js"), options(at("root"))),
+        "M-root-ok"
+      );
+    } else {
+      expectAdapterError(
+        await compileTemplate("ok", options(at("ROOT"))),
+        NOT_FOUND
+      );
+      expectAdapterError(
+        await compileTemplate(at("ROOT", "ok.js"), options(at("root"))),
+        OUTSIDE
+      );
+    }
+  });
+
+  test("a missing name inside a root is TEMPLATE_NOT_FOUND, not TEMPLATE_OUTSIDE_ROOT (D-17)", async () => {
+    const error = expectAdapterError(
+      await compileTemplate("nope", options(at("root"))),
+      NOT_FOUND
+    );
+    expect(error.searched).toEqual([
+      at("root", "nope.js"),
+      at("root", "nope.cjs"),
+      at("root", "nope.mjs"),
+    ]);
+  });
+
+  test("a sibling directory that shares the root's name prefix is outside (edge SEC-01/adjacency)", async () => {
+    const error = expectAdapterError(
+      await compileTemplate("../root-evil/evil", options(at("root"))),
+      OUTSIDE
+    );
+    expect(error.path).toBe(at("root-evil", "evil.js"));
+    // A name equal to the root itself is inside the root but is a directory, not a regular file.
+    expectAdapterError(
+      await compileTemplate(at("tree.js"), options(at("tree.js"))),
+      NOT_FOUND
+    );
+    expectAdapterError(
+      await compileTemplate("nested.js", options(at("root"))),
+      NOT_FOUND
+    );
+  });
+
+  test("a symlink inside a root that points outside is refused, file and directory links alike (D-04, SEC-02)", async ({
+    skip,
+  }) => {
+    needLinks(skip);
+    const file = expectAdapterError(
+      await compileTemplate("link-out-file", options(at("root"))),
+      OUTSIDE
+    );
+    expect(file.path).toBe(at("root", "link-out-file.js"));
+    const folder = expectAdapterError(
+      await compileTemplate("link-out/secret", options(at("root"))),
+      OUTSIDE
+    );
+    expect(folder.path).toBe(at("root", "link-out", "secret.js"));
+  });
+
+  test("a symlink that resolves inside the root loads (D-04)", async ({
+    skip,
+  }) => {
+    needLinks(skip);
+    expectRendered(
+      await compileTemplate("link-in", options(at("root"))),
+      "M-root-sub-x"
+    );
+  });
+
+  test("a root that is itself a symlink works for relative and absolute names (D-04)", async ({
+    skip,
+  }) => {
+    needLinks(skip);
+    for (const name of ["ok", at("current", "ok.js"), at("root", "ok.js")]) {
+      expectRendered(
+        await compileTemplate(name, options(at("current"))),
+        "M-root-ok"
+      );
+    }
+  });
+
+  test("an earlier root's escaping candidate does not hide a later root's file (D-24)", async ({
+    skip,
+  }) => {
+    needLinks(skip);
+    const both = options(at("root"), [at("b")]);
+    expectRendered(await compileTemplate("shared/t", both), "M-b-shared-t");
+    expectRendered(await compileTemplate("shared/u", both), "M-b-shared-u");
+  });
+});

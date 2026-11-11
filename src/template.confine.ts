@@ -1,8 +1,75 @@
+import { realpath } from "node:fs/promises";
 import path from "node:path";
 
-// Internal module: the pure name rules of template confinement. No I/O, no filesystem import.
+// Internal module: the rules of template confinement. The name rules and isInsideRoot are pure; the
+// only I/O is resolveRealLocation, which asks the filesystem for real paths and never reads a file.
 // The path flavor is a parameter so the Windows rules can be tested on every OS: production passes
 // the host `path` (which IS `path.win32` on Windows), tests pass `path.posix` or `path.win32`.
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+export function isNotHereError(error: unknown): boolean {
+  if (!isRecord(error) || !("code" in error)) {
+    return false;
+  }
+  return error.code === "ENOENT" || error.code === "ENOTDIR";
+}
+
+export interface RealLocation {
+  readonly location: string;
+  readonly failure: { readonly cause: unknown } | undefined;
+}
+
+// The real location of a file that may not exist (D-17): the realpath of its deepest resolvable
+// ancestor plus the remaining tail of base names. `file` is absolute and normalized (candidateFiles
+// and path.resolve guarantee it), so the tail never holds `..`. An error other than ENOENT or ENOTDIR
+// (ELOOP, ENAMETOOLONG, EACCES) is returned as `failure`; the location is still the best one known.
+export async function resolveRealLocation(file: string): Promise<RealLocation> {
+  let failure: RealLocation["failure"];
+  const remember = (error: unknown): void => {
+    if (failure === undefined && !isNotHereError(error)) {
+      failure = { cause: error };
+    }
+  };
+  try {
+    return { location: await realpath(file), failure: undefined };
+  } catch (error) {
+    remember(error);
+  }
+  const tail: string[] = [];
+  let current = file;
+  for (;;) {
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return { location: file, failure };
+    }
+    tail.unshift(path.basename(current));
+    current = parent;
+    try {
+      return { location: path.join(await realpath(current), ...tail), failure };
+    } catch (error) {
+      remember(error);
+    }
+  }
+}
+
+// Containment between two real locations: path.relative, never a string-prefix test (research
+// Pattern 1). `..hidden.js` is a legal name, hence `".." + sep` rather than startsWith("..").
+export function isInsideRoot(
+  root: string,
+  candidate: string,
+  flavor: typeof path = path
+): boolean {
+  const rel = flavor.relative(root, candidate);
+  return (
+    rel === "" ||
+    (rel !== ".." &&
+      !rel.startsWith(".." + flavor.sep) &&
+      !flavor.isAbsolute(rel))
+  );
+}
 
 export type NameVerdict =
   "ok" | "nul-byte" | "url-scheme" | "windows-device" | "windows-drive-or-unc";

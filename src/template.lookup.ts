@@ -4,23 +4,16 @@ import path from "node:path";
 import { REACT_ADAPTER_ERROR_CODES, ReactAdapterError } from "./adapter.errors";
 import {
   classifyTemplateName,
+  isInsideRoot,
+  isNotHereError,
+  isRecord,
   isUncNameAllowed,
   messageTemplateName,
+  resolveRealLocation,
   type NameVerdict,
 } from "./template.confine";
 
 export const KNOWN_EXTENSIONS = [".js", ".cjs", ".mjs"] as const;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function isNotHereError(error: unknown): boolean {
-  if (!isRecord(error) || !("code" in error)) {
-    return false;
-  }
-  return error.code === "ENOENT" || error.code === "ENOTDIR";
-}
 
 // template.dir first, then each template.dirs entry in array order, as the mailer's own adapters search them.
 // Anything that is not a non-empty string contributes nothing; no mailer-version detection happens here.
@@ -64,19 +57,32 @@ export function candidateFiles(
   return [...new Set(files)];
 }
 
-async function isFile(file: string, template: string): Promise<boolean> {
+// `toStat` is the real location that is inspected; `reported` is the candidate that errors name.
+async function isFile(
+  toStat: string,
+  reported: string,
+  template: string
+): Promise<boolean> {
   try {
-    return (await stat(file)).isFile();
+    return (await stat(toStat)).isFile();
   } catch (error) {
     if (isNotHereError(error)) {
       return false;
     }
-    throw new ReactAdapterError(
-      REACT_ADAPTER_ERROR_CODES.TEMPLATE_LOAD_FAILED,
-      `Could not inspect template file "${file}" for template "${template}".`,
-      { template, path: file, cause: error }
-    );
+    throw loadFailed(template, reported, error);
   }
+}
+
+function loadFailed(
+  template: string,
+  file: string,
+  cause: unknown
+): ReactAdapterError {
+  return new ReactAdapterError(
+    REACT_ADAPTER_ERROR_CODES.TEMPLATE_LOAD_FAILED,
+    `Could not inspect template file "${file}" for template "${template}".`,
+    { template, path: file, cause }
+  );
 }
 
 const INVALID_REASONS: Record<Exclude<NameVerdict, "ok">, string> = {
@@ -137,14 +143,44 @@ export async function locateTemplate(
     );
   }
   const candidates = candidateFiles(template, directories);
+  const roots = [
+    ...new Set(directories.map((directory) => path.resolve(directory))),
+  ];
+  // D-17: one rule. Every root and every candidate is judged by its real location, so spelling,
+  // aliases and letter case decide nothing beyond what the filesystem says.
+  const realRoots = confinement.allowOutside
+    ? []
+    : await Promise.all(
+        roots.map(async (root) => (await resolveRealLocation(root)).location)
+      );
+  // D-24: an outside candidate is skipped (never stat'ed) and remembered; the lookup goes on.
+  let firstOutside: string | undefined;
   for (const candidate of candidates) {
-    if (await isFile(candidate, template)) {
+    const { location, failure } = await resolveRealLocation(candidate);
+    if (
+      !confinement.allowOutside &&
+      !realRoots.some((realRoot) => isInsideRoot(realRoot, location))
+    ) {
+      firstOutside ??= candidate;
+      continue;
+    }
+    if (failure !== undefined) {
+      throw loadFailed(template, candidate, failure.cause);
+    }
+    if (await isFile(location, candidate, template)) {
       return candidate;
     }
+  }
+  if (firstOutside !== undefined) {
+    throw new ReactAdapterError(
+      REACT_ADAPTER_ERROR_CODES.TEMPLATE_OUTSIDE_ROOT,
+      `Template "${messageTemplateName(template)}" resolves outside the configured template roots (see error.roots), so it was not loaded. To allow it, construct ReactAdapter with unsafeAllowOutsideTemplateDir: true.`,
+      { template, path: firstOutside, roots }
+    );
   }
   throw new ReactAdapterError(
     REACT_ADAPTER_ERROR_CODES.TEMPLATE_NOT_FOUND,
     `Template "${template}" was not found. Searched: ${candidates.join(", ")}`,
-    { template, path: candidates[0], searched: candidates }
+    { template, path: candidates[0], searched: candidates, roots }
   );
 }

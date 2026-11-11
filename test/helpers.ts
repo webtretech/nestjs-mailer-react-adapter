@@ -1,4 +1,6 @@
 import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 import type { MailerOptions } from "@nestjs-modules/mailer";
 import { expect } from "vitest";
@@ -114,4 +116,53 @@ export async function writeTemplate(
     ? `export default ${body}\n`
     : `module.exports = ${body};\n`;
   await fs.writeFile(file, source);
+}
+
+// A fresh temporary folder under os.tmpdir(), returned by its real path (macOS keeps /var -> /private/var).
+export async function makeTempRoot(prefix: string): Promise<string> {
+  return fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), prefix)));
+}
+
+function errorCode(error: unknown): string | undefined {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const { code } = error;
+    return typeof code === "string" ? code : undefined;
+  }
+  return undefined;
+}
+
+// Creates a symlink with an absolute target. A directory link on Windows falls back to a junction.
+// When a link cannot be created, CI fails loudly (no symlink test may pass vacuously); elsewhere it
+// returns false so the caller can skip with a visible note.
+export async function makeLink(
+  target: string,
+  link: string,
+  kind: "file" | "dir"
+): Promise<boolean> {
+  try {
+    try {
+      await fs.symlink(target, link, kind);
+    } catch (error) {
+      const code = errorCode(error);
+      if (
+        kind === "dir" &&
+        process.platform === "win32" &&
+        (code === "EPERM" || code === "EACCES")
+      ) {
+        await fs.symlink(target, link, "junction");
+      } else {
+        throw error;
+      }
+    }
+  } catch (error) {
+    if (process.env.CI || process.env.GITHUB_ACTIONS) {
+      throw new Error(
+        `Could not create the ${kind} link ${link} -> ${target}: ${errorCode(error) ?? String(error)}`,
+        { cause: error }
+      );
+    }
+    return false;
+  }
+  expect((await fs.lstat(link)).isSymbolicLink()).toBe(true);
+  return true;
 }

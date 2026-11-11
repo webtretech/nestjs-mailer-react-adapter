@@ -82,12 +82,21 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
     await expectRender("tsc-cjs", "tsc-cjs");
   });
 
-  test("characterization: absolute path wins over template.dir", async () => {
+  test("characterization: an absolute path outside template.dir renders only with unsafeAllowOutsideTemplateDir (changed in 0.3.0)", async () => {
     await expectRender(
       path.join(FIXTURES, "tsc-cjs.js"),
       "tsc-cjs",
-      mailerOptions(os.tmpdir())
+      mailerOptions(os.tmpdir()),
+      new ReactAdapter({ unsafeAllowOutsideTemplateDir: true })
     );
+    const refused = expectAdapterError(
+      await compileTemplate(
+        path.join(FIXTURES, "tsc-cjs.js"),
+        mailerOptions(os.tmpdir())
+      ),
+      "ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT"
+    );
+    expect(refused.roots).toEqual([path.resolve(os.tmpdir())]);
   });
 
   test("characterization: relative template.dir resolves against process.cwd()", async () => {
