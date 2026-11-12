@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import {
   mkdtempSync,
   readdirSync,
+  readFileSync,
   realpathSync,
   rmSync,
   statSync,
@@ -80,6 +81,16 @@ export function runNpm(args, options) {
   return cli === undefined
     ? spawnChecked(`npm ${args[0]}`, "npm", args, options)
     : spawnChecked(`npm ${args[0]}`, process.execPath, [cli, ...args], options);
+}
+
+// The version of a package installed in a scratch project.
+export function installedVersion(scratch, name) {
+  return JSON.parse(
+    readFileSync(
+      path.join(scratch, "node_modules", name, "package.json"),
+      "utf8"
+    )
+  ).version;
 }
 
 // realpathSync.native: on macOS os.tmpdir() is under /var, a symlink to /private/var, and a

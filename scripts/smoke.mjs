@@ -4,6 +4,7 @@ import { parseArgs } from "node:util";
 import {
   CheckFailure,
   INSTALL_FLAGS,
+  installedVersion,
   makeScratch,
   repoRoot,
   resolveTarball,
@@ -65,15 +66,6 @@ function checkExpectedNode(expected) {
       `usage: --expect-node must be a major (22) or x.y.z (20.19.0), got ${JSON.stringify(expected)}`
     );
   }
-}
-
-function installedVersion(scratch, name) {
-  return JSON.parse(
-    readFileSync(
-      path.join(scratch, "node_modules", name, "package.json"),
-      "utf8"
-    )
-  ).version;
 }
 
 // The render and missing-template checks the runtime consumers share. It expects `assert`,

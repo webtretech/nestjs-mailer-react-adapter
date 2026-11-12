@@ -1,16 +1,11 @@
 import { spawnSync } from "node:child_process";
-import {
-  copyFileSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { copyFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import {
   CheckFailure,
   INSTALL_FLAGS,
+  installedVersion,
   makeScratch,
   repoRoot,
   resolveTarball,
@@ -77,15 +72,6 @@ function parseLeg(argv) {
     );
   }
   return { spec, claimedMajor, ...values };
-}
-
-function installedVersion(scratch, name) {
-  return JSON.parse(
-    readFileSync(
-      path.join(scratch, "node_modules", name, "package.json"),
-      "utf8"
-    )
-  ).version;
 }
 
 function tapCount(output, name) {
