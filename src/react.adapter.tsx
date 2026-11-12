@@ -13,7 +13,7 @@ import {
   resolveSettings,
 } from "./adapter.options";
 import { REACT_ADAPTER_ERROR_CODES, ReactAdapterError } from "./adapter.errors";
-import { quotedTemplateName } from "./template.confine";
+import { ownProperty, quotedTemplateName } from "./template.confine";
 import { describeExport, isRenderable, loadTemplate } from "./template.loader";
 import { locateTemplate } from "./template.lookup";
 
@@ -32,9 +32,14 @@ export class ReactAdapter implements TemplateAdapter {
       return;
     }
     const { data, template, context } = classified;
-    const file = await locateTemplate(template, options?.template, {
-      allowOutside: settings.unsafeAllowOutsideTemplateDir,
-    });
+    // Own property only: an inherited `template` (a polluted Object.prototype) never supplies roots.
+    const file = await locateTemplate(
+      template,
+      ownProperty(options, "template"),
+      {
+        allowOutside: settings.unsafeAllowOutsideTemplateDir,
+      }
+    );
     const { value, exportNames } = await loadTemplate(file, template);
     if (!isRenderable(value)) {
       throw new ReactAdapterError(

@@ -754,3 +754,54 @@ describe("unsafeAllowOutsideTemplateDir (D-11, D-12, D-13, D-19)", () => {
     }
   );
 });
+
+describe("template roots are read only from own properties", () => {
+  // A value reached through the prototype chain (a polluted Object.prototype or Array.prototype)
+  // never adds a root. Each case gives the value its own prototype, so nothing global changes.
+  function inheriting<T extends object>(proto: object, own: T): T {
+    Object.setPrototypeOf(own, proto);
+    return own;
+  }
+
+  test("control: an own template.dir pointing at the outside folder loads from it", async () => {
+    expectRendered(
+      await compileTemplate("secret", options(at("out"))),
+      "M-out-secret"
+    );
+  });
+
+  test("an inherited mailer template option never supplies roots", async () => {
+    const mailerOptions = inheriting({ template: { dir: at("out") } }, {});
+    expectAdapterError(
+      await compileTemplate("secret", mailerOptions),
+      DIR_MISSING
+    );
+  });
+
+  test("an inherited template.dir or template.dirs never adds a root", async () => {
+    const inheritedDir = { template: inheriting({ dir: at("out") }, {}) };
+    expectAdapterError(
+      await compileTemplate("secret", inheritedDir),
+      DIR_MISSING
+    );
+    const inheritedDirs = {
+      template: inheriting({ dirs: [at("out")] }, { dir: at("root") }),
+    };
+    expectAdapterError(
+      await compileTemplate("secret", inheritedDirs),
+      NOT_FOUND
+    );
+  });
+
+  test("a hole in template.dirs never reads a root from the array's prototype", async () => {
+    const holeyProto = inheriting(Array.prototype, { 1: at("out") });
+    const dirs = inheriting(holeyProto, [at("root")]);
+    dirs.length = 2;
+    expect(Array.isArray(dirs)).toBe(true);
+    expect(dirs[1]).toBe(at("out"));
+    expectAdapterError(
+      await compileTemplate("secret", options(undefined, dirs)),
+      NOT_FOUND
+    );
+  });
+});

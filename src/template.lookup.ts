@@ -8,6 +8,7 @@ import {
   isNotHereError,
   isRecord,
   isUncNameAllowed,
+  ownProperty,
   quotedTemplateName,
   resolveRealLocation,
   type NameVerdict,
@@ -17,18 +18,19 @@ export const KNOWN_EXTENSIONS = [".js", ".cjs", ".mjs"] as const;
 
 // template.dir first, then each template.dirs entry in array order, as the mailer's own adapters search them.
 // Anything that is not a non-empty string contributes nothing; no mailer-version detection happens here.
+// These are the confinement roots, so only own properties count: a polluted Object.prototype or
+// Array.prototype (an inherited dir or dirs, an array hole, a replaced iterator) never adds a root.
 export function templateDirectories(templateOptions: unknown): string[] {
-  if (!isRecord(templateOptions)) {
-    return [];
-  }
-  const { dir, dirs } = templateOptions;
+  const dir = ownProperty(templateOptions, "dir");
+  const dirs = ownProperty(templateOptions, "dirs");
   const directories: string[] = [];
   if (typeof dir === "string" && dir !== "") {
     directories.push(dir);
   }
   if (Array.isArray(dirs)) {
     const entries: unknown[] = dirs;
-    for (const entry of entries) {
+    for (let index = 0; index < entries.length; index += 1) {
+      const entry = ownProperty(entries, index);
       if (typeof entry === "string" && entry !== "") {
         directories.push(entry);
       }
