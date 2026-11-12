@@ -58,10 +58,13 @@ export function run(command, args, options) {
   return spawnChecked(`${command} ${args[0]}`, command, args, options);
 }
 
-// The flags every scratch `npm install` passes. The three config flags are set on the command line
-// because a flag beats the caller's ~/.npmrc and npm_config_* environment: a developer with
-// legacy-peer-deps or force turned on would otherwise get an install that succeeds on a peer range
-// that is too wide, and the ERESOLVE check would pass locally and fail only on CI.
+// The flags every scratch `npm install` passes. The config flags (legacy-peer-deps, force,
+// engine-strict, omit) are set on the command line because a flag beats the caller's ~/.npmrc and
+// npm_config_* environment: a developer with legacy-peer-deps or force turned on would otherwise get
+// an install that succeeds on a peer range that is too wide, and the ERESOLVE check would pass
+// locally and fail only on CI. engine-strict=false keeps the Node 20.19.0 smoke leg on its
+// EBADENGINE warning (file-type asks for Node 22), and an empty --omit= keeps the mailer peer
+// installed when the caller omits peers.
 // --ignore-scripts: no floating package needs a lifecycle script for these checks, and running
 // none keeps what a leg installs from executing code.
 export const INSTALL_FLAGS = [
@@ -70,6 +73,8 @@ export const INSTALL_FLAGS = [
   "--no-fund",
   "--legacy-peer-deps=false",
   "--force=false",
+  "--engine-strict=false",
+  "--omit=",
   "--ignore-scripts",
 ];
 

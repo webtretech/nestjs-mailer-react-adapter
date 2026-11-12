@@ -290,7 +290,7 @@ try {
   const typesNodeVersion = lockedVersion("@types/node");
 
   // No mailer is named: npm installs the adapter's @nestjs-modules/mailer peer itself, which is
-  // the empty-install case. npm strict engine checking is never turned on: on Node 20.19.0 the
+  // the empty-install case. INSTALL_FLAGS turns npm strict engine checking off: on Node 20.19.0 the
   // mailer's @nestjs/common pulls file-type, which asks for Node 22 and warns EBADENGINE. The
   // warning is harmless (install, require, import and render all work on 20.19.0).
   runNpm(
