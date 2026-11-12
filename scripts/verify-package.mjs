@@ -6,7 +6,8 @@ import { CheckFailure, repoRoot, resolveTarball } from "./lib/scratch.mjs";
 
 // Lints the packed tarball with publint and attw, the same way locally and in CI. Both tools are
 // devDependencies pinned by package-lock.json and run from node_modules by the bin path in their own
-// package.json, with the Node that runs this script, so a Node matrix runs them on every Node.
+// package.json, with the Node that runs this script. CI runs it once, in the pack job on the
+// .nvmrc Node; no Node matrix runs the lint.
 //
 // publint runs with --strict, so warnings fail like errors. attw runs with its strict profile
 // (node10, node16 from CJS, node16 from ESM and bundler). Neither run passes a rule-ignore option:
