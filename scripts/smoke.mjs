@@ -227,8 +227,11 @@ ${TS_CHECKS}`;
 
 // skipLibCheck is on for every TypeScript consumer: mailer v4's own declarations import ESM-only
 // Nest 12 and raise TS1479 under node16 CommonJS without it (RESEARCH Pattern 3). Nothing in those
-// errors names this package; the adapter's declarations stay covered by attw, verify:types and
-// the broken-types control (a tarball whose require.types points at the .d.mts fails here).
+// errors names this package, so an error inside the adapter's own .d.cts or .d.mts is hidden here
+// too. These consumers only prove that sources written against the adapter's exports compile. The
+// declarations themselves are covered by verify:types (which reports any `any` reachable from the
+// exports, what an unresolvable import becomes under skipLibCheck) and by attw in verify:package
+// (how each types path resolves from CommonJS, ESM and bundler consumers), both committed.
 const NODE16_TSCONFIG = JSON.stringify({
   compilerOptions: {
     module: "node16",
