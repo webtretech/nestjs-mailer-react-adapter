@@ -3,6 +3,7 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import {
   CheckFailure,
+  INSTALL_FLAGS,
   makeScratch,
   repoRoot,
   resolveTarball,
@@ -300,9 +301,7 @@ try {
   runNpm(
     [
       "install",
-      "--save-exact",
-      "--no-audit",
-      "--no-fund",
+      ...INSTALL_FLAGS,
       tarball,
       "react@19",
       "react-dom@19",

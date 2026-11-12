@@ -10,6 +10,7 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import {
   CheckFailure,
+  INSTALL_FLAGS,
   makeScratch,
   repoRoot,
   resolveTarball,
@@ -112,15 +113,14 @@ try {
     })
   );
 
-  // A plain install: no legacy peer resolution, no force and no overrides, so that a peer range
-  // wider than what actually works fails here with ERESOLVE. Floating legs name no nodemailer and
-  // take whatever their mailer peer resolves to; Nest versions float to the newest that fit.
+  // A plain install: no legacy peer resolution, no force and no overrides (INSTALL_FLAGS pins those
+  // against the caller's npm config), so that a peer range wider than what actually works fails
+  // here with ERESOLVE. Floating legs name no nodemailer and take whatever their mailer peer
+  // resolves to; Nest versions float to the newest that fit.
   runNpm(
     [
       "install",
-      "--save-exact",
-      "--no-audit",
-      "--no-fund",
+      ...INSTALL_FLAGS,
       tarball,
       `@nestjs-modules/mailer@${leg.spec}`,
       ...(leg.nodemailer === undefined ? [] : [`nodemailer@${leg.nodemailer}`]),

@@ -35,6 +35,21 @@ export function run(command, args, options) {
   return spawnChecked(`${command} ${args[0]}`, command, args, options);
 }
 
+// The flags every scratch `npm install` passes. The three config flags are set on the command line
+// because a flag beats the caller's ~/.npmrc and npm_config_* environment: a developer with
+// legacy-peer-deps or force turned on would otherwise get an install that succeeds on a peer range
+// that is too wide, and the ERESOLVE check would pass locally and fail only on CI.
+// --ignore-scripts: no floating package needs a lifecycle script for these checks, and running
+// none keeps what a leg installs from executing code.
+export const INSTALL_FLAGS = [
+  "--save-exact",
+  "--no-audit",
+  "--no-fund",
+  "--legacy-peer-deps=false",
+  "--force=false",
+  "--ignore-scripts",
+];
+
 // npm's JavaScript entry point: the one npm that launched this script (`npm run` sets
 // npm_execpath, and npx sets it to npx-cli.js, which is ignored), else the npm that ships next to
 // the Node running this script (<prefix>/lib/node_modules/npm on POSIX, <node dir>/node_modules/npm
