@@ -4,12 +4,15 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import {
   CheckFailure,
+  exitDescription,
   INSTALL_FLAGS,
   installedVersion,
   makeScratch,
   repoRoot,
   resolveTarball,
+  RUN_TIMEOUT_MS,
   runNpm,
+  startFailure,
   WELCOME_TEMPLATE_SOURCE,
 } from "./lib/scratch.mjs";
 
@@ -75,7 +78,7 @@ function parseLeg(argv) {
 }
 
 function tapCount(output, name) {
-  const match = new RegExp(`^# ${name} (\\d+)$`, "m").exec(output);
+  const match = new RegExp(`^# ${name} (\\d+)\\r?$`, "m").exec(output);
   return match === null ? undefined : Number(match[1]);
 }
 
@@ -153,6 +156,7 @@ try {
       encoding: "utf8",
       stdio: ["inherit", "pipe", "inherit"],
       maxBuffer: 64 * 1024 * 1024,
+      timeout: RUN_TIMEOUT_MS,
       env: {
         ...process.env,
         EXPECTED_MAILER_MAJOR: String(leg.claimedMajor),
@@ -163,9 +167,7 @@ try {
   const output = tests.stdout ?? "";
   process.stdout.write(output);
   if (tests.error !== undefined) {
-    throw new CheckFailure(
-      `contract tests could not start: ${tests.error.message}`
-    );
+    throw startFailure("contract tests", tests.error, RUN_TIMEOUT_MS);
   }
 
   const counts = Object.fromEntries(
@@ -180,7 +182,7 @@ try {
     .join(", ");
   if (tests.status !== 0) {
     throw new CheckFailure(
-      `contract tests exited ${tests.status} (${summary}, expected ${expected} tests)`
+      `contract tests ${exitDescription(tests)} (${summary}, expected ${expected} tests)`
     );
   }
   if (

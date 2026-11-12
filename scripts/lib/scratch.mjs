@@ -16,18 +16,40 @@ export class CheckFailure extends Error {}
 
 export const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 
+// Upper bounds, so a hung child fails the leg instead of waiting for the CI job limit. An npm
+// install here takes up to about a minute and a tsc or consumer run takes seconds, so these are
+// far above a normal run and are not tuned to one.
+export const NPM_TIMEOUT_MS = 10 * 60 * 1000;
+export const RUN_TIMEOUT_MS = 5 * 60 * 1000;
+
+export function startFailure(label, error, timeoutMs) {
+  return new CheckFailure(
+    error.code === "ETIMEDOUT"
+      ? `${label} timed out after ${timeoutMs / 1000} s`
+      : `${label} could not start: ${error.message}`
+  );
+}
+
+// A child killed by a signal has a null status, so name the signal.
+export function exitDescription(result) {
+  return result.status === null
+    ? `was killed by ${result.signal}`
+    : `exited ${result.status}`;
+}
+
 // An argv array with no shell, so nothing a caller passes is ever interpreted by a shell.
 function spawnChecked(label, command, args, options) {
   const result = spawnSync(command, args, {
     stdio: "inherit",
     shell: false,
+    timeout: RUN_TIMEOUT_MS,
     ...options,
   });
   if (result.error !== undefined) {
-    throw new CheckFailure(`${label} could not start: ${result.error.message}`);
+    throw startFailure(label, result.error, options?.timeout ?? RUN_TIMEOUT_MS);
   }
   if (result.status !== 0) {
-    throw new CheckFailure(`${label} exited ${result.status}`);
+    throw new CheckFailure(`${label} ${exitDescription(result)}`);
   }
   return result;
 }
@@ -78,9 +100,15 @@ function findNpmCli() {
 // bare `npm` on PATH is the fallback.
 export function runNpm(args, options) {
   const cli = findNpmCli();
+  const npmOptions = { timeout: NPM_TIMEOUT_MS, ...options };
   return cli === undefined
-    ? spawnChecked(`npm ${args[0]}`, "npm", args, options)
-    : spawnChecked(`npm ${args[0]}`, process.execPath, [cli, ...args], options);
+    ? spawnChecked(`npm ${args[0]}`, "npm", args, npmOptions)
+    : spawnChecked(
+        `npm ${args[0]}`,
+        process.execPath,
+        [cli, ...args],
+        npmOptions
+      );
 }
 
 // The version of a package installed in a scratch project.
