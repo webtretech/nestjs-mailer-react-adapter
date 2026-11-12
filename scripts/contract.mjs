@@ -27,7 +27,7 @@ const USAGE =
 // The exact number of node:test tests each mailer major must report. A leg passes only on an exact
 // match, so an empty, truncated or partly skipped test file cannot pass (node:test reports an empty
 // file as one passing file-level test).
-const EXPECTED_TESTS = Object.freeze({ 2: 2, 3: 2, 4: 2 });
+const EXPECTED_TESTS = Object.freeze({ 2: 7, 3: 7, 4: 10 });
 
 function parseLeg(argv) {
   let parsed;
