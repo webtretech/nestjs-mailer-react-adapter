@@ -13,7 +13,7 @@ import {
   makeScratch,
   repoRoot,
   resolveTarball,
-  run,
+  runNpm,
   WELCOME_TEMPLATE_SOURCE,
 } from "./lib/scratch.mjs";
 
@@ -115,8 +115,7 @@ try {
   // A plain install: no legacy peer resolution, no force and no overrides, so that a peer range
   // wider than what actually works fails here with ERESOLVE. Floating legs name no nodemailer and
   // take whatever their mailer peer resolves to; Nest versions float to the newest that fit.
-  run(
-    "npm",
+  runNpm(
     [
       "install",
       "--save-exact",

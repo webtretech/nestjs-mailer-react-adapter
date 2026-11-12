@@ -7,6 +7,7 @@ import {
   repoRoot,
   resolveTarball,
   run,
+  runNpm,
   WELCOME_TEMPLATE_SOURCE,
 } from "./lib/scratch.mjs";
 
@@ -296,8 +297,7 @@ try {
   // the empty-install case. npm strict engine checking is never turned on: on Node 20.19.0 the
   // mailer's @nestjs/common pulls file-type, which asks for Node 22 and warns EBADENGINE. The
   // warning is harmless (install, require, import and render all work on 20.19.0).
-  run(
-    "npm",
+  runNpm(
     [
       "install",
       "--save-exact",
