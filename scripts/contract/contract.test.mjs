@@ -85,7 +85,7 @@ describe("adapter text off", () => {
     ({ app, calls, mailer } = await boot({}));
   });
   after(async () => {
-    await app.close();
+    await app?.close();
   });
 
   test("templated sendMail sends the rendered HTML", async () => {
@@ -112,13 +112,13 @@ describe("adapter text off", () => {
   // v4 wraps the adapter error in MailerTemplateError (code ETEMPLATE, permanent, cause is the
   // adapter error); v2 and v3 reject with the adapter error itself.
   test("missing template rejects with an error naming the template", async () => {
+    assert.equal(
+      REACT_ADAPTER_ERROR_CODES.TEMPLATE_NOT_FOUND,
+      "ERR_REACT_ADAPTER_TEMPLATE_NOT_FOUND"
+    );
     await assert.rejects(
       send(mailer, { template: "nope", context: {} }),
       (error) => {
-        assert.equal(
-          REACT_ADAPTER_ERROR_CODES.TEMPLATE_NOT_FOUND,
-          "ERR_REACT_ADAPTER_TEMPLATE_NOT_FOUND"
-        );
         assert.match(error.message, /"nope"/);
         if (major >= 4) {
           assert.ok(error instanceof MailerTemplateError);
@@ -142,14 +142,14 @@ describe("adapter text off", () => {
   });
 
   test("mail without a template passes through unchanged", async () => {
-    const html = await send(mailer, { html: "<p>raw</p>" });
-    assert.equal(html.html, "<p>raw</p>");
+    const htmlMessage = await send(mailer, { html: "<p>raw</p>" });
+    assert.equal(htmlMessage.html, "<p>raw</p>");
     // v4 derives a text part from the html; its content is not asserted.
-    if (major < 4) assert.equal("text" in html, false);
+    if (major < 4) assert.equal("text" in htmlMessage, false);
 
-    const text = await send(mailer, { text: "plain only" });
-    assert.equal(text.text, "plain only");
-    assert.equal("html" in text, false);
+    const textMessage = await send(mailer, { text: "plain only" });
+    assert.equal(textMessage.text, "plain only");
+    assert.equal("html" in textMessage, false);
   });
 
   if (major >= 4) {
@@ -184,7 +184,7 @@ describe("adapter text on", () => {
     ({ app, mailer } = await boot({ text: true }));
   });
   after(async () => {
-    await app.close();
+    await app?.close();
   });
 
   test("templated sendMail sends the rendered HTML", async () => {
