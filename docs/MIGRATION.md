@@ -20,7 +20,7 @@ Every user-visible change between 0.2.5 and 0.3.0, actions first. The [README](h
 
 3. **Refused names.** Even with the opt-out, these stay refused: a NUL byte, a URL scheme (`release-2026:q1` counts) and Windows device or verbatim names on every OS; drive-letter and UNC names off Windows. On Windows a UNC name loads only from the server and share of a configured UNC root.
 
-4. **Node `>=20.19`.** Node 18 and 20.0 to 20.18 are no longer supported.
+4. **Node `>=20.19`.** 0.2.5 allowed `^18.19.1 || ^20.11.1 || >=22.0.0`; Node 18 and 20.11 to 20.18 are no longer supported.
 
 5. **Mailer peer floor `@nestjs-modules/mailer` 2.0.1.** The full range is `^2.0.1 || ^3.0.0 || ^4.0.0`. Version 2.0.0 loads an undeclared `preview-email` and fails with a JSON transport, and installing next to it fails with ERESOLVE.
 
@@ -65,10 +65,9 @@ Every user-visible change between 0.2.5 and 0.3.0, actions first. The [README](h
 
 ## Behaviour changes, no action needed
 
-- `@react-email/render` is `^2.3.0` (was exactly 1.0.2) and `locter` is removed; the adapter has its own loader (`require` first, `import()` fallback). Rendering output does not change.
+- `@react-email/render` is `^2.3.0` (was exactly 1.0.2) and `locter` is removed; the adapter has its own loader (`require` first, `import()` fallback). Default HTML is the same except that React's `<link rel="preload" as="image">` hint for each `<img>` is no longer added to `<head>`. With `pretty: true` the formatting differs (another formatter: more line breaks, `charset` instead of `charSet`).
 - New `text` option: fills `mail.data.text` and never overwrites a caller's `text`. `htmlToTextOptions` and `unstableTextConversion` apply to the text part only. A conversion failure is `ERR_REACT_ADAPTER_TEXT_FAILED`.
-- `pretty` is honoured: the adapter renders once, builds the text from the raw HTML, then formats.
-- The constructor type is `ReactAdapterOptions`; unknown keys reach `render()`.
+- The constructor option type is now `ReactAdapterOptions` (was `@react-email/render`'s `Options`).
 - Pass-through: mail with `html` or `raw`, or text-only mail, is left alone. Bodiless mail is `ERR_REACT_ADAPTER_NO_BODY` and malformed mail is `ERR_REACT_ADAPTER_INVALID_MAIL`.
 - `template.dirs` works on every mailer version. `template.dir` is searched first, then `template.dirs` in order, and `template.dir` may be omitted when `dirs` is set.
 - Extension rule: only a final lowercase `.js`, `.cjs` or `.mjs` counts as an extension, so `welcome.v2` loads `welcome.v2.js`, and `welcome` tries `.js`, `.cjs`, `.mjs` in that order.
