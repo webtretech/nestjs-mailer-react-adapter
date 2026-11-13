@@ -16,29 +16,31 @@
 
 ## Features
 
-- 🦾 Write your email templates in [React](https://github.com/facebook/react/) and [TypeScript](https://www.typescriptlang.org/)
+- Write email templates in [React](https://github.com/facebook/react/) and [TypeScript](https://www.typescriptlang.org/)
+- Optional plain-text part built from the rendered HTML
+- Typed errors with stable `ERR_REACT_ADAPTER_*` codes
+- Templates load only from your template directories
+- Built on [`@react-email/render`](https://github.com/resend/react-email)
 
-- 📬 No more template not found / sending blank emails.
+## Install
 
-- 🔰 No more missing context / variables from template.
-
-- 🧪 Write testable templates intended for email clients.
-
-- 💌 Built on top of [`react-email`](https://github.com/resendlabs/react-email) — the next generation of writing emails.
-
-## Installation
-
-> This library is an adapter for the [`@nestjs-modules/mailer`](https://github.com/nest-modules/mailer) module, so we'll install the dependencies alongside by running the command below.
+This library is an adapter for [`@nestjs-modules/mailer`](https://github.com/nest-modules/mailer), so install it alongside the mailer, `nodemailer`, `react` and `react-dom`.
 
 ```sh
-npm i @webtre/nestjs-mailer-react-adapter @nestjs-modules/mailer nodemailer
+npm i @webtre/nestjs-mailer-react-adapter @nestjs-modules/mailer nodemailer react react-dom
+npm i -D @types/react
 ```
 
-### Getting Started
+- Node `>=20.19`
+- `@nestjs-modules/mailer` `^2.0.1 || ^3.0.0 || ^4.0.0`
+- `react` and `react-dom` `^18.0.0 || ^19.0.0`
+- `nodemailer` follows the mailer major's own peer: `>=6.4.6` on v2, `>=8.0.5` on v3 and v4
 
-To add support for `React` to your project, modify `tsconfig.json`
+## Setup
 
-```javascript
+Enable the React JSX transform in `tsconfig.json`.
+
+```jsonc
 {
   "compilerOptions": {
     // add this line
@@ -47,10 +49,16 @@ To add support for `React` to your project, modify `tsconfig.json`
 }
 ```
 
-### Configuration
+Templates must be compiled to JavaScript first. The adapter loads only `.js`, `.cjs` and `.mjs` files and appends those extensions, in that order, to a name without one. With `nest build` (tsc), templates under `src/templates` compile to `dist/templates`. With SWC, compile them in a separate step (the SWC example uses gulp).
 
-```javascript
+Templates are loaded once per process and cached by Node, so changes to a template file take effect after the application restarts.
+
+## Configuration
+
+```ts
 // src/app.module.ts
+import { join } from "node:path";
+
 import { Module } from "@nestjs/common";
 import { MailerModule } from "@nestjs-modules/mailer";
 import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
@@ -71,21 +79,8 @@ import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
         from: '"Webtre Technologies" <hello@domain.com>',
       },
       template: {
-        dir: __dirname + "/templates",
-        // Use the adapter
-        adapter: new ReactAdapter(),
-
-        // Or with optional config
-        adapter: new ReactAdapter({
-          pretty: false,
-          plainText: true,
-          htmlToTextOptions: {
-            wordwrap: 130,
-            limits: {
-              ellipsis: "...",
-            },
-          },
-        }),
+        dir: join(__dirname, "templates"),
+        adapter: new ReactAdapter({ text: true }),
       },
     }),
   ],
@@ -93,36 +88,34 @@ import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
 export class AppModule {}
 ```
 
-To see more options that can be passed to the `htmlToTextOptions` object, [click here](https://github.com/html-to-text/node-html-to-text/tree/master/packages/html-to-text#options).
+`template.dirs` adds more template roots, searched after `template.dir`, in order.
 
-### Service Provider
+Send mail with a template name and a `context`, which becomes the template's props.
 
-```javascript
-import { Injectable } from '@nestjs/common';
-import { MailerService } from '@nestjs-modules/mailer';
+```ts
+import { Injectable } from "@nestjs/common";
+import { MailerService } from "@nestjs-modules/mailer";
 
 @Injectable()
 export class ExampleService {
   constructor(private readonly mailerService: MailerService) {}
 
-  async public example(): Promise<void> {
-    await this.mailerService
-      .sendMail({
-        to: 'john@domain.com',
-        subject: 'Testing react template',
-        template: 'welcome', // The compiled extension is appended automatically.
-        context: { // Data to be passed as props to your template.
-          code: '123456',
-          name: 'John Doe',
-        },
-      });
+  public async example(): Promise<void> {
+    await this.mailerService.sendMail({
+      to: "john@domain.com",
+      subject: "Testing react template",
+      template: "welcome", // The compiled extension is appended automatically.
+      context: {
+        // Data passed as props to your template.
+        code: "123456",
+        name: "John Doe",
+      },
+    });
   }
 }
 ```
 
-### React Template
-
-```javascript
+```tsx
 // src/templates/welcome.tsx
 interface Props {
   code: string;
@@ -137,7 +130,21 @@ export default function Welcome({ name, code }: Props) {
   );
 }
 ```
-Templates are loaded once per process and cached by Node, so changes to a template file take effect after the application restarts.
+
+## Options
+
+Pass options to the `ReactAdapter` constructor.
+
+| Option | Default | Effect |
+| --- | --- | --- |
+| `pretty` | `false` | Formats the HTML with prettier. The text part is built from the unformatted HTML. |
+| `text` | `false` | Fills `mail.data.text` from the rendered HTML when the mail has no text part. |
+| `htmlToTextOptions` | none | [html-to-text options](https://github.com/html-to-text/node-html-to-text/tree/master/packages/html-to-text#options) for the text part. Ignored when `unstableTextConversion` is `true`. |
+| `unstableTextConversion` | `false` | Builds the text part with render's in-house converter instead of html-to-text. |
+| `unsafeAllowOutsideTemplateDir` | `false` | Constructor only, and only the literal `true`. Lets templates load from outside the configured roots. See [Security](#security). |
+| `plainText` | none | Deprecated, use `text`. Same effect. Emits warning code `REACT_ADAPTER_DEP0001` once per process when the key is present. `text` wins when both are set. |
+
+Any other key is passed unchanged to `@react-email/render`'s `render()`.
 
 ## Security
 
