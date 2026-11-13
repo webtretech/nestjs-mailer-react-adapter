@@ -52,7 +52,7 @@ Each row names one `compile()` path and the test that exercises it, by area, rep
 | resolver | the template type is checked before the directory | test/pass-through.test.ts | the template type is checked before the directory |
 | resolver | relative missing template with mailer options {} | test/pass-through.test.ts | a relative missing template with mailer options {} reports TEMPLATE_DIR_MISSING |
 | resolver | mailer options {} and a relative name never throw | test/template-lookup.test.ts | compile() with an empty mailer options object and a relative name never throws |
-| resolver | NOT_FOUND has no cause | test/template-loader.test.ts | template-loader: TEMPLATE_NOT_FOUND has no cause |
+| resolver | NOT_FOUND has no cause | test/template-loader.test.ts | TEMPLATE_NOT_FOUND has no cause |
 | resolver | compile() with undefined mailer options | test/template-confinement.test.ts | compile() with undefined mailer options: a relative name is DIR_MISSING and an absolute name is OUTSIDE_ROOT unless opted out |
 | resolver | a missing template in the built artifact, cjs and esm | scripts/verify-build.mjs | does-not-exist |
 | confinement | name rules, posix flavor | test/template-confine.test.ts | %j is %s |
@@ -120,28 +120,28 @@ Each row names one `compile()` path and the test that exercises it, by area, rep
 | loader | ERR_REQUIRE_ESM falls back to import() | test/loader-fallback.test.ts | characterization: ERR_REQUIRE_ESM from require() falls back to import() |
 | loader | ERR_REQUIRE_ASYNC_MODULE falls back to import() | test/loader-fallback.test.ts | characterization: ERR_REQUIRE_ASYNC_MODULE from require() falls back to import() |
 | loader | any other require() error never falls back | test/loader-fallback.test.ts | any other require() error is reported once as ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED and never falls back (changed in 0.3.0) |
-| loader | a .cjs template is never retried through import() | test/template-loader.test.ts | template-loader: a .cjs template whose dependency needs import() is not evaluated a second time |
+| loader | a .cjs template is never retried through import() | test/template-loader.test.ts | a .cjs template whose dependency needs import() is not evaluated a second time |
 | loader | native ESM that failed to load stays failed | scripts/verify-build.mjs | esm-throws |
-| loader | memo() default export | test/template-loader.test.ts | template-loader: a memo() default export renders |
-| loader | forwardRef() default export | test/template-loader.test.ts | template-loader: a forwardRef() default export renders |
-| loader | INVALID_EXPORT for non-component exports | test/template-loader.test.ts | template-loader: module.exports = %s fails once as INVALID_EXPORT saying what was found |
+| loader | memo() default export | test/template-loader.test.ts | a memo() default export renders |
+| loader | forwardRef() default export | test/template-loader.test.ts | a forwardRef() default export renders |
+| loader | INVALID_EXPORT for non-component exports | test/template-loader.test.ts | module.exports = %s fails once as INVALID_EXPORT saying what was found |
 | loader | INVALID_EXPORT for exports.default without __esModule | test/render.test.ts | CJS template with exports.default and no __esModule fails with ERR_REACT_ADAPTER_INVALID_EXPORT naming the shape (changed in 0.3.0) |
 | loader | INVALID_EXPORT for an ESM template without a default export | test/render.test.ts | ESM template with no default export fails with ERR_REACT_ADAPTER_INVALID_EXPORT listing its exports (changed in 0.3.0) |
-| loader | INVALID_EXPORT has no cause | test/template-loader.test.ts | template-loader: INVALID_EXPORT has no cause |
-| loader | LOAD_FAILED for a syntax error | test/template-loader.test.ts | template-loader: a syntax error fails once as TEMPLATE_LOAD_FAILED with the SyntaxError as cause |
-| loader | a template that throws at load is retried once fixed | test/template-loader.test.ts | template-loader: a CommonJS template that throws at load is retried on the next send once it is fixed |
-| loader | load-failure cause rule: a missing dependency shows only its code | test/template-loader.test.ts | template-loader: a missing dependency fails as TEMPLATE_LOAD_FAILED naming MODULE_NOT_FOUND and no path |
-| loader | load-failure cause rule: a syntax error message is quoted | test/template-loader.test.ts | template-loader: a syntax error's own message is quoted |
-| loader | load-failure cause rule: an error without a code is quoted | test/template-loader.test.ts | template-loader: an error thrown at load without a code is quoted |
-| loader | load-failure cause rule: a string code shows only the code | test/template-loader.test.ts | template-loader: a thrown error with a string code shows only the code |
-| loader | load-failure cause rule: a non-Error value is quoted | test/template-loader.test.ts | template-loader: a non-Error value thrown at load is quoted |
+| loader | INVALID_EXPORT has no cause | test/template-loader.test.ts | INVALID_EXPORT has no cause |
+| loader | LOAD_FAILED for a syntax error | test/template-loader.test.ts | a syntax error fails once as TEMPLATE_LOAD_FAILED with the SyntaxError as cause |
+| loader | a template that throws at load is retried once fixed | test/template-loader.test.ts | a CommonJS template that throws at load is retried on the next send once it is fixed |
+| loader | load-failure cause rule: a missing dependency shows only its code | test/template-loader.test.ts | a missing dependency fails as TEMPLATE_LOAD_FAILED naming MODULE_NOT_FOUND and no path |
+| loader | load-failure cause rule: a syntax error message is quoted | test/template-loader.test.ts | a syntax error's own message is quoted |
+| loader | load-failure cause rule: an error without a code is quoted | test/template-loader.test.ts | an error thrown at load without a code is quoted |
+| loader | load-failure cause rule: a string code shows only the code | test/template-loader.test.ts | a thrown error with a string code shows only the code |
+| loader | load-failure cause rule: a non-Error value is quoted | test/template-loader.test.ts | a non-Error value thrown at load is quoted |
 | renderer | html output | test/render.test.ts | characterization: tsc-compiled CJS template by relative name without extension |
 | renderer | pretty option | test/render.test.ts | characterization: pretty option renders formatted HTML |
 | renderer | pretty html equals render pretty | test/text.test.ts | pretty html equals render(node, { pretty: true }) |
 | renderer | pretty with text builds text from the raw html | test/text.test.ts | with pretty and text, html is the pretty characterization and text is built from the raw html |
 | renderer | pretty formatter failure is RENDER_FAILED | test/error-messages.test.ts | a pretty formatter failure fails once as RENDER_FAILED and writes no html |
-| renderer | a component that throws is RENDER_FAILED without leaking the context | test/template-loader.test.ts | template-loader: a component that throws while rendering fails once as RENDER_FAILED without leaking the context |
-| renderer | a component that throws undefined keeps an undefined cause | test/template-loader.test.ts | template-loader: a component that throws undefined fails as RENDER_FAILED and keeps an undefined cause |
+| renderer | a component that throws is RENDER_FAILED without leaking the context | test/template-loader.test.ts | a component that throws while rendering fails once as RENDER_FAILED without leaking the context |
+| renderer | a component that throws undefined keeps an undefined cause | test/template-loader.test.ts | a component that throws undefined fails as RENDER_FAILED and keeps an undefined cause |
 | renderer | a component that renders null yields a doctype string | test/text.test.ts | a component that renders null still yields a doctype string |
 | renderer | html starts with the XHTML doctype | test/text.test.ts | html starts with the XHTML doctype for options %j |
 | text options | no text key when the text option is off | test/text.test.ts | no text key is added when the text option is off |
@@ -169,5 +169,5 @@ Each row names one `compile()` path and the test that exercises it, by area, rep
 | callback count | NO_BODY fails once | test/pass-through.test.ts | %s fails once with ERR_REACT_ADAPTER_NO_BODY and no template, path or cause |
 | callback count | INVALID_MAIL fails once | test/pass-through.test.ts | mail %s fails once with ERR_REACT_ADAPTER_INVALID_MAIL and no template or cause |
 | callback count | an over-long name fails once through the callback | test/template-lookup.test.ts | an over-long name component fails once through the callback and never throws |
-| callback count | a render failure is raised once and never wrapped again | test/template-loader.test.ts | template-loader: a component that throws while rendering fails once as RENDER_FAILED without leaking the context |
+| callback count | a render failure is raised once and never wrapped again | test/template-loader.test.ts | a component that throws while rendering fails once as RENDER_FAILED without leaking the context |
 | callback count | a text conversion failure is raised once | test/text.test.ts | a converter failure fails the send once as TEXT_FAILED and writes neither html nor text |

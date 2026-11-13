@@ -170,7 +170,7 @@ describe("known-extension rule", () => {
     );
   });
 
-  test("release.2026.11 keeps every dotted part in the first candidate", async () => {
+  test("a not-found dotted name keeps every dotted part in the first candidate", async () => {
     const error = expectAdapterError(
       await compileTemplate("release.2026.12", options(dir("base"))),
       "ERR_REACT_ADAPTER_TEMPLATE_NOT_FOUND"
@@ -451,7 +451,7 @@ describe("the confinement option", () => {
   });
 
   test.skipIf(process.platform === "win32")(
-    "drive-letter and UNC names are refused with the option off Windows",
+    "drive-letter and UNC names are refused off Windows even with the option",
     async () => {
       const adapter = new ReactAdapter({ unsafeAllowOutsideTemplateDir: true });
       for (const name of ["C:\\x", "//srv/sh/x"]) {
