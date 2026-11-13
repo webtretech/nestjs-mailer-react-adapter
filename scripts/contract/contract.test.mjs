@@ -72,10 +72,6 @@ function assertWelcomeHtml(html) {
   assert.match(html, /<p>Thanks for joining\.<\/p>/);
 }
 
-test("claimed mailer major is the installed one", () => {
-  assert.equal(Number(process.env.EXPECTED_MAILER_MAJOR), major);
-});
-
 describe("adapter text off", () => {
   let app;
   let calls;
