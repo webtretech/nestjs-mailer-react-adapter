@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, test } from "vitest";
@@ -195,5 +195,68 @@ describe("README", () => {
       "https://github.com/webtretech/nestjs-mailer-react-adapter/blob/main/docs/MIGRATION.md"
     );
     expect(readme).not.toMatch(/provenance/i);
+  });
+});
+
+describe("MIGRATION", () => {
+  const migration = read("../docs/MIGRATION.md");
+  const ACTION = "## Action needed";
+  const BEHAVIOUR = "## Behaviour changes, no action needed";
+
+  test("groups changes by action", () => {
+    expect(migration).toContain(ACTION);
+    expect(migration).toContain(BEHAVIOUR);
+    expect(migration.indexOf(ACTION)).toBeLessThan(
+      migration.indexOf(BEHAVIOUR)
+    );
+    // Snippet markers sit inside list-item code blocks, so indentation is ignored.
+    const lines = section(migration, "Action needed")
+      .split("\n")
+      .map((line) => line.trim());
+    const count = (...markers: string[]) =>
+      lines.filter((line) => markers.includes(line)).length;
+    expect(count("// 0.2.x", "# 0.2.x")).toBeGreaterThanOrEqual(4);
+    expect(count("// 0.3.0", "# 0.3.0")).toBeGreaterThanOrEqual(4);
+  });
+
+  test("covers every required change", () => {
+    const required = [
+      "unsafeAllowOutsideTemplateDir",
+      "template.dirs",
+      "2.0.1",
+      "^2.0.1 || ^3.0.0 || ^4.0.0",
+      ">=20.19",
+      "^18.0.0 || ^19.0.0",
+      "@types/react",
+      "plainText",
+      "REACT_ADAPTER_DEP0001",
+      "ReactAdapterError",
+      "error.path",
+      "error.searched",
+      "error.roots",
+      "unhandled rejection",
+      "welcome.v2",
+      "index.cjs",
+      "index.mjs",
+      "index.d.cts",
+      "index.d.mts",
+      "MODULE_NOT_FOUND",
+      "TypeError",
+      "MailerTemplateError",
+      "textFromHtml",
+      "`text` wins when both are set",
+      "`template.dir` is searched first, then `template.dirs` in order",
+      ...Object.values(REACT_ADAPTER_ERROR_CODES),
+    ];
+    for (const item of required) {
+      expect(migration, item).toContain(item);
+    }
+  });
+
+  test("makes no unpinned claims", () => {
+    expect(migration).not.toMatch(/provenance/i);
+    expect(
+      existsSync(fileURLToPath(new URL("../CHANGELOG.md", import.meta.url)))
+    ).toBe(false);
   });
 });
