@@ -20,6 +20,8 @@ const AREAS = [
 
 const MIN_CONFINEMENT_ROWS = 15;
 const SELF = "test/compile-paths.test.ts";
+// Documentation checks: they exercise no compile() path, so no row cites them.
+const NOT_COMPILE_TESTS = new Set(["test/docs.test.ts"]);
 const SCRIPT_OWNER = "scripts/verify-build.mjs";
 const HEADER = "| Area | compile() path | File | Test |";
 const PLACEHOLDER = /\bno test yet\b|\bTODO\b|^none$/i;
@@ -396,7 +398,7 @@ async function loadSuite(): Promise<{
   const testFiles = names
     .filter((name) => name.endsWith(".test.ts"))
     .map((name) => `test/${name}`)
-    .filter((file) => file !== SELF)
+    .filter((file) => file !== SELF && !NOT_COMPILE_TESTS.has(file))
     .sort();
   const wanted = new Set<string>([
     ...testFiles,
