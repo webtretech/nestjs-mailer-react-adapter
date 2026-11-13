@@ -1,6 +1,6 @@
 # Errors
 
-Failures reach the mailer callback as a `ReactAdapterError` with `code`, `template`, `path`, `searched`, `roots` and `cause`. On mailer v4 the send rejects with `MailerTemplateError`, whose `cause` is the `ReactAdapterError`; v2 and v3 reject with the adapter error itself. Messages carry no absolute paths, so read the `path`, `searched` and `roots` fields instead.
+Failures reach the mailer callback as a `ReactAdapterError` with `code`, `template`, `path`, `searched`, `roots` and `cause`. On mailer v4 the send rejects with `MailerTemplateError`, whose `cause` is the `ReactAdapterError`; v2 and v3 reject with the adapter error itself. The adapter never puts an absolute path in a message; read the `path`, `searched` and `roots` fields instead. The one exception is the text of an uncoded error a template itself throws: `ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED` quotes it as given, so it may contain a path (a SyntaxError whose message names a path shows only its name). `cause` is the original value, unsanitised.
 
 | Code | When |
 | --- | --- |

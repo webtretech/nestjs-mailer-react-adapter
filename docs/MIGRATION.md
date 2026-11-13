@@ -59,7 +59,7 @@ Every user-visible change between 0.2.5 and 0.3.0, actions first. The [README](h
 
    The codes: `ERR_REACT_ADAPTER_TEMPLATE_DIR_MISSING`, `ERR_REACT_ADAPTER_TEMPLATE_NOT_FOUND`, `ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED`, `ERR_REACT_ADAPTER_INVALID_EXPORT`, `ERR_REACT_ADAPTER_RENDER_FAILED`, `ERR_REACT_ADAPTER_TEXT_FAILED`, `ERR_REACT_ADAPTER_NO_BODY`, `ERR_REACT_ADAPTER_INVALID_MAIL`, `ERR_REACT_ADAPTER_INVALID_TEMPLATE_NAME`, `ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT`. See the [README Errors section](https://github.com/webtretech/nestjs-mailer-react-adapter#errors).
 
-9. **Messages no longer contain absolute paths or searched lists.** Read `error.path`, `error.searched` and `error.roots`. Absolute names appear by last segment only, and names are JSON-escaped in messages.
+9. **The adapter no longer puts absolute paths or searched lists in messages.** Read `error.path`, `error.searched` and `error.roots`. Absolute names appear by last segment only, and names are JSON-escaped in messages. The text of an uncoded error a template itself throws is still quoted as given; see [Errors](https://github.com/webtretech/nestjs-mailer-react-adapter/blob/main/docs/ERRORS.md).
 
 10. **A throw from the mailer callback** on the success path surfaces as an unhandled rejection. The callback is not called a second time.
 
