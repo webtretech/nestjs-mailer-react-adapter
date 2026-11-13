@@ -6,8 +6,13 @@ import { fileURLToPath } from "node:url";
 import type { MailerOptions } from "@nestjs-modules/mailer";
 import { describe, expect, test } from "vitest";
 
-import { ReactAdapter, ReactAdapterError } from "../src";
-import { compileTemplate, expectAdapterError, makeTempRoot } from "./helpers";
+import { ReactAdapter } from "../src";
+import {
+  compileOnce,
+  compileTemplate,
+  expectAdapterError,
+  makeTempRoot,
+} from "./helpers";
 
 const FIXTURES = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -92,14 +97,12 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
       "does-not-exist",
       mailerOptions(FIXTURES)
     );
-    expect(outcome.calls).toBe(1);
-    expect(outcome.args).toHaveLength(1);
-    const error = outcome.args[0];
-    expect(error).toBeInstanceOf(ReactAdapterError);
-    const adapterError = error as ReactAdapterError;
-    expect(adapterError.code).toBe("ERR_REACT_ADAPTER_TEMPLATE_NOT_FOUND");
-    expect(adapterError.template).toBe("does-not-exist");
-    expect(adapterError.searched).toEqual(
+    const error = expectAdapterError(
+      outcome,
+      "ERR_REACT_ADAPTER_TEMPLATE_NOT_FOUND"
+    );
+    expect(error.template).toBe("does-not-exist");
+    expect(error.searched).toEqual(
       [".js", ".cjs", ".mjs"].map((ext) =>
         path.join(FIXTURES, "does-not-exist" + ext)
       )
@@ -109,33 +112,12 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
 
   test("missing template.dir reports ERR_REACT_ADAPTER_TEMPLATE_DIR_MISSING through the callback and never throws (changed in 0.3.0)", async () => {
     // 0.2.5 threw a TypeError synchronously here.
-    const received: unknown[][] = [];
-    let returned = false;
-    let calledBeforeReturn = false;
-    const mail = { data: { template: "tsc-cjs", context: { body: "Body" } } };
-    expect(() => {
-      new ReactAdapter().compile(
-        mail,
-        (...args: unknown[]) => {
-          if (!returned) {
-            calledBeforeReturn = true;
-          }
-          received.push(args);
-        },
-        {}
-      );
-      returned = true;
-    }).not.toThrow();
-    expect(calledBeforeReturn).toBe(false);
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(received).toHaveLength(1);
-    expect(received[0]).toHaveLength(1);
-    const error = received[0][0];
-    expect(error).toBeInstanceOf(ReactAdapterError);
-    const adapterError = error as ReactAdapterError;
-    expect(adapterError.code).toBe("ERR_REACT_ADAPTER_TEMPLATE_DIR_MISSING");
-    expect(adapterError.template).toBe("tsc-cjs");
-    expect(adapterError.searched).toBeUndefined();
+    const error = expectAdapterError(
+      await compileTemplate("tsc-cjs", {}),
+      "ERR_REACT_ADAPTER_TEMPLATE_DIR_MISSING"
+    );
+    expect(error.template).toBe("tsc-cjs");
+    expect(error.searched).toBeUndefined();
   });
 
   test("characterization: SWC-compiled CJS template with a default getter", async () => {
@@ -279,25 +261,10 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
         html: undefined,
       }),
     };
-    const args: unknown[][] = [];
-    await new Promise<void>((resolve) => {
-      new ReactAdapter().compile(
-        mail,
-        (...received: unknown[]) => {
-          args.push(received);
-          setTimeout(resolve, 50);
-        },
-        mailerOptions(FIXTURES)
-      );
-    });
-    expect(args).toHaveLength(1);
-    expect(args[0]).toHaveLength(1);
-    const [error] = args[0];
-    expect(error).toBeInstanceOf(ReactAdapterError);
-    if (!(error instanceof ReactAdapterError)) {
-      throw new Error("expected a ReactAdapterError");
-    }
-    expect(error.code).toBe("ERR_REACT_ADAPTER_INVALID_MAIL");
+    const error = expectAdapterError(
+      await compileOnce(new ReactAdapter(), mail, mailerOptions(FIXTURES)),
+      "ERR_REACT_ADAPTER_INVALID_MAIL"
+    );
     expect(error.cause).toBeInstanceOf(TypeError);
   });
 });
