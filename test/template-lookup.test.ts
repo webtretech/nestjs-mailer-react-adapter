@@ -1,5 +1,4 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,6 +12,7 @@ import {
   compileTemplate,
   expectAdapterError,
   makeLink,
+  makeTempRoot,
   writeTemplate,
 } from "./helpers";
 import type { Outcome } from "./helpers";
@@ -51,7 +51,7 @@ function candidates(directory: string, name: string): string[] {
 }
 
 beforeAll(async () => {
-  root = await fs.mkdtemp(path.join(os.tmpdir(), "react-adapter-lookup-"));
+  root = await makeTempRoot("react-adapter-lookup-");
   for (const name of [
     "base",
     "base/nested/deep",

@@ -1,5 +1,4 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,7 +18,7 @@ import {
 
 import { ReactAdapter, ReactAdapterError } from "../src";
 import type { ReactAdapterOptions } from "../src";
-import { compileOnce, expectAdapterError } from "./helpers";
+import { compileOnce, expectAdapterError, makeTempRoot } from "./helpers";
 import type { Outcome } from "./helpers";
 
 // Pass-through spies: the real functions run, the calls are recorded.
@@ -79,7 +78,7 @@ function expectSuccess(outcome: Outcome): void {
 let scratch: string;
 
 beforeAll(async () => {
-  scratch = await fs.mkdtemp(path.join(os.tmpdir(), "react-adapter-text-"));
+  scratch = await makeTempRoot("react-adapter-text-");
   await fs.writeFile(
     path.join(scratch, "nothing.js"),
     "module.exports = function Nothing() { return null; };\n"

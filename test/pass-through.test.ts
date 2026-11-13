@@ -1,5 +1,4 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,7 +6,7 @@ import type { MailerOptions } from "@nestjs-modules/mailer";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
 import { ReactAdapter } from "../src";
-import { compileOnce, expectAdapterError } from "./helpers";
+import { compileOnce, expectAdapterError, makeTempRoot } from "./helpers";
 import type { Outcome } from "./helpers";
 
 const FIXTURES = path.join(
@@ -52,7 +51,7 @@ function entriesOf(data: Data): [string, unknown][] {
 let scratch: string;
 
 beforeAll(async () => {
-  scratch = await fs.mkdtemp(path.join(os.tmpdir(), "react-adapter-mail-"));
+  scratch = await makeTempRoot("react-adapter-mail-");
   // Counts how often the component function runs, on globalThis so the test can read it back.
   await fs.writeFile(
     path.join(scratch, "counted.js"),
