@@ -26,7 +26,7 @@ import {
 
 // One example app, built against the packed adapter: copy the example into a fresh scratch directory,
 // install the tarball in place of the adapter's registry range, build, boot the built app with a JSON
-// transport (no SMTP), send the welcome mail, and run the README's CI recipe in the built app. The
+// transport (no SMTP), send the welcome mail, and run the CI recipe from docs/VALIDATING-TEMPLATES.md in the built app. The
 // adapter is only ever loaded from the packed tarball, never from the working tree.
 
 const EXAMPLES = ["nestjs-example", "nestjs-with-swc-example"];
@@ -72,7 +72,7 @@ function parseCommand(argv) {
   return { name: positionals[0], ...values };
 }
 
-// Runs the README recipe file and returns the child's result; stdout and stderr are echoed.
+// Runs the CI recipe file and returns the child's result; stdout and stderr are echoed.
 function runRecipe(file, cwd) {
   const result = spawnSync(process.execPath, [file], {
     cwd,
@@ -82,7 +82,7 @@ function runRecipe(file, cwd) {
     timeout: RUN_TIMEOUT_MS,
   });
   if (result.error !== undefined) {
-    throw startFailure("README recipe", result.error, RUN_TIMEOUT_MS);
+    throw startFailure("CI recipe", result.error, RUN_TIMEOUT_MS);
   }
   process.stdout.write(result.stdout);
   process.stderr.write(result.stderr);
@@ -161,22 +161,27 @@ try {
     },
   });
 
-  // The README recipe, extracted from its fence, in the built app and then against an empty template
-  // directory.
-  const readme = readFileSync(path.join(repoRoot, "README.md"), "utf8");
-  const recipe = RECIPE_FENCE.exec(readme);
+  // The CI recipe, extracted from its fence in docs/VALIDATING-TEMPLATES.md, in the built app and then
+  // against an empty template directory.
+  const recipeDoc = readFileSync(
+    path.join(repoRoot, "docs", "VALIDATING-TEMPLATES.md"),
+    "utf8"
+  );
+  const recipe = RECIPE_FENCE.exec(recipeDoc);
   if (recipe === null) {
-    throw new CheckFailure("README has no check-templates.mjs recipe");
+    throw new CheckFailure(
+      "docs/VALIDATING-TEMPLATES.md has no check-templates.mjs recipe"
+    );
   }
   const recipeFile = path.join(app, "check-templates.mjs");
   writeFileSync(recipeFile, `${recipe[1]}\n`);
 
   const positive = runRecipe(recipeFile, app);
   if (positive.status !== 0) {
-    throw new CheckFailure(`README recipe ${exitDescription(positive)}`);
+    throw new CheckFailure(`CI recipe ${exitDescription(positive)}`);
   }
   if (!positive.stdout.includes("ok welcome")) {
-    throw new CheckFailure("README recipe did not print `ok welcome`");
+    throw new CheckFailure("CI recipe did not print `ok welcome`");
   }
 
   const emptyCase = path.join(app, "empty-case");
@@ -186,13 +191,11 @@ try {
   );
   const empty = runRecipe(recipeFile, emptyCase);
   if (empty.status === 0) {
-    throw new CheckFailure(
-      "README recipe passed on an empty template directory"
-    );
+    throw new CheckFailure("CI recipe passed on an empty template directory");
   }
   if (!empty.stderr.includes("no compiled templates in")) {
     throw new CheckFailure(
-      "README recipe failed on an empty template directory without `no compiled templates in`"
+      "CI recipe failed on an empty template directory without `no compiled templates in`"
     );
   }
 

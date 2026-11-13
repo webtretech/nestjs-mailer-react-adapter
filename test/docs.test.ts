@@ -6,7 +6,7 @@ import { describe, expect, test } from "vitest";
 import { REACT_ADAPTER_ERROR_CODES } from "../src";
 import type { ReactAdapterOptions } from "../src";
 
-// Ties README.md to the source and to package.json, so a documented fact cannot drift silently.
+// Ties README.md and the pages under docs/ to the source and to package.json, so a documented fact cannot drift silently.
 
 function read(relative: string): string {
   return readFileSync(
@@ -21,6 +21,9 @@ type PackageJson = {
 };
 
 const readme = read("../README.md");
+const errorsDoc = read("../docs/ERRORS.md");
+const validatingDoc = read("../docs/VALIDATING-TEMPLATES.md");
+const securityDoc = read("../docs/TEMPLATE-SECURITY.md");
 const pkg = JSON.parse(read("../package.json")) as PackageJson;
 
 type Fence = { lang: string; body: string };
@@ -65,7 +68,7 @@ function section(markdown: string, heading: string): string {
     }
   }
   if (!found) {
-    throw new Error(`README section "${heading}" is missing`);
+    throw new Error(`section "${heading}" is missing`);
   }
   return collected.join("\n");
 }
@@ -124,17 +127,16 @@ describe("README", () => {
     const text = section(readme, "Text part");
     const row = (prefix: string) =>
       text.split("\n").find((line) => line.startsWith(prefix)) ?? "";
-    for (const major of ["| v2", "| v3"]) {
-      expect(row(major), major).toContain("No text part");
-      expect(row(major), major).toContain("Adapter text part");
-    }
+    const v2v3 = row("| v2, v3");
+    expect(v2v3).toContain("No text part");
+    expect(v2v3).toContain("Adapter text part");
     const v4 = row("| v4");
     expect(v4).toContain("textFromHtml");
     expect(v4).toContain("render()");
     expect(v4).toContain("Adapter text part");
+    expect(text).toContain("`text: true`");
     expect(text).toContain("never replaced");
-    expect(text).toContain("passes through unchanged");
-    expect(text).toContain("upper-cases headings");
+    expect(readme).not.toContain("docs/TEXT-PART.md");
 
     // The table restates these assertions; if the contract changes, this fails until the README does.
     const contract = read("../scripts/contract/contract.test.mjs");
@@ -150,7 +152,7 @@ describe("README", () => {
   });
 
   test("lists exactly the exported error codes and fields", () => {
-    const errors = section(readme, "Errors");
+    const errors = errorsDoc;
     const documented = new Set(errors.match(/ERR_REACT_ADAPTER_[A-Z_]+/g));
     expect(documented).toEqual(
       new Set(Object.values(REACT_ADAPTER_ERROR_CODES))
@@ -159,10 +161,15 @@ describe("README", () => {
       expect(errors).toContain(`\`${field}\``);
     }
     expect(errors).toContain("MailerTemplateError");
+
+    const summary = section(readme, "Errors");
+    expect(summary).toContain("`ReactAdapterError`");
+    expect(summary).toContain("REACT_ADAPTER_ERROR_CODES");
+    expect(summary).toContain("MailerTemplateError");
   });
 
   test("gives a runner-agnostic CI recipe", () => {
-    const recipes = fences(readme).filter(
+    const recipes = fences(validatingDoc).filter(
       ({ lang, body }) =>
         lang === "js" && body.startsWith("// check-templates.mjs")
     );
@@ -173,19 +180,38 @@ describe("README", () => {
     // A bare runner call; RegExp.prototype.test, as in `/x/.test(file)`, is a method call and allowed.
     expect(body).not.toMatch(/(?<![.\w])(describe|it|test|expect)\(/);
     expect(body).not.toMatch(/jest|vitest/i);
+    expect(
+      fences(readme).some(({ body }) => body.includes("check-templates"))
+    ).toBe(false);
   });
 
-  test("lists the refused template names in Security", () => {
+  test("keeps the core security points in the README", () => {
     const security = section(readme, "Security");
+    for (const word of [
+      "<style>",
+      "<script>",
+      "dangerouslySetInnerHTML",
+      "srcDoc",
+      "symlinks resolved",
+      "template.dirs",
+      "unsafeAllowOutsideTemplateDir",
+      "constructor-only",
+    ]) {
+      expect(security, word).toContain(word);
+    }
+  });
+
+  test("lists the refused template names in docs/TEMPLATE-SECURITY.md", () => {
     for (const word of [
       "NUL",
       "URL scheme",
       "drive-letter",
       "UNC",
       "Windows",
+      "leaves them refused",
       "unsafeAllowOutsideTemplateDir",
     ]) {
-      expect(security, word).toContain(word);
+      expect(securityDoc, word).toContain(word);
     }
   });
 
@@ -195,6 +221,21 @@ describe("README", () => {
       "https://github.com/webtretech/nestjs-mailer-react-adapter/blob/main/docs/MIGRATION.md"
     );
     expect(readme).not.toMatch(/provenance/i);
+  });
+
+  test("links to each moved page by absolute URL", () => {
+    for (const page of [
+      "ERRORS",
+      "VALIDATING-TEMPLATES",
+      "TEMPLATE-SECURITY",
+    ]) {
+      expect(readme).toContain(
+        `](https://github.com/webtretech/nestjs-mailer-react-adapter/blob/main/docs/${page}.md)`
+      );
+    }
+    for (const doc of [errorsDoc, validatingDoc, securityDoc]) {
+      expect(doc).not.toMatch(/\]\((?!https?:\/\/|#)/);
+    }
   });
 });
 
