@@ -38,7 +38,7 @@ const FIXTURES = path.join(
   "fixtures"
 );
 
-describe("TMPL-05: CommonJS templates load through require() alone (loader-level, D-21)", () => {
+describe("CommonJS templates load through require() alone (loader-level)", () => {
   beforeEach(() => {
     requireCalls.records.length = 0;
   });

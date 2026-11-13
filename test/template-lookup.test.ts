@@ -104,7 +104,7 @@ afterAll(async () => {
   await fs.rm(root, { recursive: true, force: true });
 });
 
-describe("extension order within one directory (D-17, D-18)", () => {
+describe("extension order within one directory", () => {
   test("welcome.js wins when .js, .cjs and .mjs all exist", async () => {
     expectRendered(
       await compileTemplate("all3", options(dir("base"))),
@@ -121,7 +121,7 @@ describe("extension order within one directory (D-17, D-18)", () => {
   });
 });
 
-describe("known-extension rule (D-17, TMPL-01)", () => {
+describe("known-extension rule", () => {
   test("dotted.v2 loads dotted.v2.js", async () => {
     expectRendered(
       await compileTemplate("dotted.v2", options(dir("base"))),
@@ -179,7 +179,7 @@ describe("known-extension rule (D-17, TMPL-01)", () => {
   });
 });
 
-describe("nested names (TMPL-02)", () => {
+describe("nested names", () => {
   test("esm-pkg/welcome resolves inside the template root", async () => {
     const outcome = await compileTemplate("esm-pkg/welcome", options(FIXTURES));
     expect(outcome.calls).toBe(1);
@@ -213,7 +213,7 @@ describe("nested names (TMPL-02)", () => {
   });
 });
 
-describe("directory order (D-19, TMPL-03)", () => {
+describe("directory order", () => {
   test("template.dir wins over a template.dirs entry", async () => {
     expectRendered(
       await compileTemplate("both", options(dir("primary"), [dir("a")])),
@@ -314,7 +314,7 @@ describe("directory order (D-19, TMPL-03)", () => {
   });
 });
 
-describe("no template directory at all (D-27)", () => {
+describe("no template directory at all", () => {
   test("a relative name with neither dir nor dirs is TEMPLATE_DIR_MISSING with no searched list", async () => {
     const error = expectAdapterError(
       await compileTemplate("welcome", {}),
@@ -336,7 +336,7 @@ describe("no template directory at all (D-27)", () => {
     expect(error.searched).toEqual(candidates(dir("a"), "nope"));
   });
 
-  test("an absolute name with no template.dir is TEMPLATE_OUTSIDE_ROOT with an empty roots list (changed in 0.3.0, D-20)", async () => {
+  test("an absolute name with no template.dir is TEMPLATE_OUTSIDE_ROOT with an empty roots list (changed in 0.3.0)", async () => {
     for (const name of [dir("base/all3.js"), dir("base/cm")]) {
       const error = expectAdapterError(
         await compileTemplate(name, {}),
@@ -348,7 +348,7 @@ describe("no template directory at all (D-27)", () => {
       expect(error.message).toContain("template.dir");
       expect(error.message).toContain("unsafeAllowOutsideTemplateDir");
     }
-    // D-26: the message shows the last path segment only, the full name stays on error.template.
+    // The message shows the last path segment only, the full name stays on error.template.
     const error = expectAdapterError(
       await compileTemplate(dir("base/all3.js"), {}),
       "ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT"
@@ -358,7 +358,7 @@ describe("no template directory at all (D-27)", () => {
     expect(error.template).toBe(dir("base/all3.js"));
   });
 
-  test("an absolute name with no template.dir renders with unsafeAllowOutsideTemplateDir: true (D-20)", async () => {
+  test("an absolute name with no template.dir renders with unsafeAllowOutsideTemplateDir: true", async () => {
     const adapter = new ReactAdapter({ unsafeAllowOutsideTemplateDir: true });
     expectRendered(
       await compileTemplate(dir("base/all3.js"), {}, adapter),
@@ -412,7 +412,7 @@ function mailerOptionsWithKey(where: "template.options" | "template" | "top") {
   return loose;
 }
 
-describe("the confinement option (D-11, D-12, D-13, D-19, D-20, D-23)", () => {
+describe("the confinement option", () => {
   test("a relative name with no template root stays TEMPLATE_DIR_MISSING with and without the option", async () => {
     for (const adapter of [
       new ReactAdapter(),
@@ -451,7 +451,7 @@ describe("the confinement option (D-11, D-12, D-13, D-19, D-20, D-23)", () => {
   });
 
   test.skipIf(process.platform === "win32")(
-    "drive-letter and UNC names are refused with the option off Windows (D-19)",
+    "drive-letter and UNC names are refused with the option off Windows",
     async () => {
       const adapter = new ReactAdapter({ unsafeAllowOutsideTemplateDir: true });
       for (const name of ["C:\\x", "//srv/sh/x"]) {
@@ -463,7 +463,7 @@ describe("the confinement option (D-11, D-12, D-13, D-19, D-20, D-23)", () => {
     }
   );
 
-  test("the key anywhere but the constructor does not lift the refusal (D-12)", async () => {
+  test("the key anywhere but the constructor does not lift the refusal", async () => {
     const name = dir("base/all3.js");
     const outside = "ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT";
     for (const where of ["template.options", "template", "top"] as const) {
@@ -491,7 +491,7 @@ describe("the confinement option (D-11, D-12, D-13, D-19, D-20, D-23)", () => {
     );
   });
 
-  test("constructing with the option emits no warning (D-13)", () => {
+  test("constructing with the option emits no warning", () => {
     const emitWarning = vi
       .spyOn(process, "emitWarning")
       .mockImplementation(() => undefined);
@@ -504,7 +504,7 @@ describe("the confinement option (D-11, D-12, D-13, D-19, D-20, D-23)", () => {
   });
 
   test.runIf(process.platform === "win32")(
-    "a UNC name on a server no root uses is INVALID_TEMPLATE_NAME (D-23)",
+    "a UNC name on a server no root uses is INVALID_TEMPLATE_NAME",
     async () => {
       const name = "\\\\gsd-unc-guard.invalid\\share\\welcome";
       expectAdapterError(

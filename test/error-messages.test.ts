@@ -109,7 +109,7 @@ beforeEach(() => {
 interface Case {
   label: string;
   code: ReactAdapterErrorCode;
-  /** Set when the name is absolute (D-26): the full name that must stay on error.template. */
+  /** Set when the name is absolute: the full name that must stay on error.template. */
   absolute?: string;
   fire: () => Promise<Outcome>;
 }
@@ -242,12 +242,12 @@ function buildCases(): Case[] {
       fire: named(outside),
     },
     {
-      label: "OUTSIDE_ROOT: an absolute name with no template root (D-20)",
+      label: "OUTSIDE_ROOT: an absolute name with no template root",
       code: REACT_ADAPTER_ERROR_CODES.TEMPLATE_OUTSIDE_ROOT,
       absolute: absolute("welcome"),
       fire: named(absolute("welcome"), {}),
     },
-    // Absolute names (D-26): every message site that can carry a template name
+    // Absolute names: every message site that can carry a template name
     {
       label: "absolute: NOT_FOUND",
       code: REACT_ADAPTER_ERROR_CODES.TEMPLATE_NOT_FOUND,
@@ -306,7 +306,7 @@ function buildCases(): Case[] {
       fire: named(absolute("nul\u0000name")),
     },
     {
-      // Refused by the name rules on POSIX and by the D-23 share guard on Windows, before any I/O.
+      // Refused by the name rules on POSIX and by the UNC share guard on Windows, before any I/O.
       label: "absolute: INVALID_TEMPLATE_NAME (UNC with a prefixed component)",
       code: REACT_ADAPTER_ERROR_CODES.INVALID_TEMPLATE_NAME,
       absolute: UNC_NAME,
@@ -322,7 +322,7 @@ function cwdForbidden(): [string, string][] {
   return cwd === path.parse(cwd).root ? [] : [["process.cwd()", cwd]];
 }
 
-// The paths a message must never show, as created and as resolved (D-26: nothing is removed first).
+// The paths a message must never show, as created and as resolved (nothing is removed first).
 function forbiddenTexts(): [string, string][] {
   return [
     ["the temp root", root],
@@ -387,7 +387,7 @@ function expectEscaped(
 }
 
 describe("error messages carry no absolute path", () => {
-  test("every published code is produced by at least one send and no message contains an absolute path (D-09, D-10, D-26)", async ({
+  test("every published code is produced by at least one send and no message contains an absolute path", async ({
     skip,
   }) => {
     // Outside CI makeLink reports false when links cannot be created; CI fails loudly instead.
@@ -402,7 +402,7 @@ describe("error messages carry no absolute path", () => {
     }
   });
 
-  test("an absolute template name appears in a message only as its last path segment and stays whole on error.template (D-26)", async ({
+  test("an absolute template name appears in a message only as its last path segment and stays whole on error.template", async ({
     skip,
   }) => {
     if (!linksWork) {
@@ -518,7 +518,7 @@ describe("error messages carry no absolute path", () => {
         shown: JSON.stringify(`nul\u0000${hostile}`),
       },
       {
-        // An absolute name shows only its last segment (D-26); POSIX and Windows both treat /abs/... as absolute.
+        // An absolute name shows only its last segment; POSIX and Windows both treat /abs/... as absolute.
         label: "absolute name with no template root",
         code: REACT_ADAPTER_ERROR_CODES.TEMPLATE_OUTSIDE_ROOT,
         name: `/abs/${hostile}`,
@@ -639,7 +639,7 @@ describe("error messages carry no absolute path", () => {
     }
   );
 
-  test("a pretty formatter failure fails once as RENDER_FAILED and writes no html (TEST-01)", async () => {
+  test("a pretty formatter failure fails once as RENDER_FAILED and writes no html", async () => {
     prettyFailsOnce();
     const outcome = await compileTemplate(
       "welcome",

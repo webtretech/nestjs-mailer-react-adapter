@@ -87,7 +87,7 @@ describe("pass-through of mail that already has a body", () => {
   ];
 
   test.each(bodies)(
-    "no template and %s passes through with every key untouched (COMPAT-04)",
+    "no template and %s passes through with every key untouched",
     async (_, build) => {
       const data = build();
       const before = entriesOf(data);
@@ -105,7 +105,7 @@ describe("pass-through of mail that already has a body", () => {
     expectUntouched(data, before);
   });
 
-  test("a template with truthy html passes through untouched (D-24)", async () => {
+  test("a template with truthy html passes through untouched", async () => {
     const data: Data = {
       template: "tsc-cjs",
       context: { body: "Body" },
@@ -117,7 +117,7 @@ describe("pass-through of mail that already has a body", () => {
     expectUntouched(data, before);
   });
 
-  test("template with truthy raw passes through untouched (D-31)", async () => {
+  test("template with truthy raw passes through untouched", async () => {
     const raws = ["From: a\r\n\r\nbody", Buffer.from("From: a\r\n\r\nbody")];
     for (const raw of raws) {
       const data: Data = { template: "does-not-exist", raw, subject: "s" };

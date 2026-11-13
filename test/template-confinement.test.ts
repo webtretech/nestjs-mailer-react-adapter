@@ -123,7 +123,7 @@ function needLinks(skip: (note?: string) => never): void {
 }
 
 describe("template confinement by real location", () => {
-  test("a ../ escape is TEMPLATE_OUTSIDE_ROOT whether or not the target exists (D-01, D-03)", async () => {
+  test("a ../ escape is TEMPLATE_OUTSIDE_ROOT whether or not the target exists", async () => {
     const rootDir = at("root");
     for (const name of ["../out/secret", "../out/nope"]) {
       const error = expectAdapterError(
@@ -137,7 +137,7 @@ describe("template confinement by real location", () => {
     }
   });
 
-  test("an absolute name outside every root is TEMPLATE_OUTSIDE_ROOT whether or not the file exists (D-01, D-02)", async () => {
+  test("an absolute name outside every root is TEMPLATE_OUTSIDE_ROOT whether or not the file exists", async () => {
     for (const name of [at("out", "secret.js"), at("out", "none.js")]) {
       const error = expectAdapterError(
         await compileTemplate(name, options(at("root"))),
@@ -150,7 +150,7 @@ describe("template confinement by real location", () => {
     }
   });
 
-  test("a name that stays inside through .. or . segments loads (D-03)", async () => {
+  test("a name that stays inside through .. or . segments loads", async () => {
     expectRendered(
       await compileTemplate("sub/../ok", options(at("root"))),
       "M-root-ok"
@@ -165,7 +165,7 @@ describe("template confinement by real location", () => {
     );
   });
 
-  test("an absolute name inside a root loads through the root, its real path or an alias (D-02, D-17)", async ({
+  test("an absolute name inside a root loads through the root, its real path or an alias", async ({
     skip,
   }) => {
     needLinks(skip);
@@ -190,7 +190,7 @@ describe("template confinement by real location", () => {
     );
   });
 
-  test("letter case of a root or name is decided by the filesystem, not by the adapter (D-17)", async () => {
+  test("letter case of a root or name is decided by the filesystem, not by the adapter", async () => {
     if (caseInsensitive) {
       expectRendered(
         await compileTemplate("ok", options(at("ROOT"))),
@@ -216,7 +216,7 @@ describe("template confinement by real location", () => {
     }
   });
 
-  test("a missing name inside a root is TEMPLATE_NOT_FOUND, not TEMPLATE_OUTSIDE_ROOT (D-17)", async () => {
+  test("a missing name inside a root is TEMPLATE_NOT_FOUND, not TEMPLATE_OUTSIDE_ROOT", async () => {
     const error = expectAdapterError(
       await compileTemplate("nope", options(at("root"))),
       NOT_FOUND
@@ -228,7 +228,7 @@ describe("template confinement by real location", () => {
     ]);
   });
 
-  test("a sibling directory that shares the root's name prefix is outside (edge SEC-01/adjacency)", async () => {
+  test("a sibling directory that shares the root's name prefix is outside (adjacency)", async () => {
     const error = expectAdapterError(
       await compileTemplate("../root-evil/evil", options(at("root"))),
       OUTSIDE
@@ -245,7 +245,7 @@ describe("template confinement by real location", () => {
     );
   });
 
-  test("a symlink inside a root that points outside is refused, file and directory links alike (D-04, SEC-02)", async ({
+  test("a symlink inside a root that points outside is refused, file and directory links alike", async ({
     skip,
   }) => {
     needLinks(skip);
@@ -261,9 +261,7 @@ describe("template confinement by real location", () => {
     expect(folder.path).toBe(at("root", "link-out", "secret.js"));
   });
 
-  test("a symlink that resolves inside the root loads (D-04)", async ({
-    skip,
-  }) => {
+  test("a symlink that resolves inside the root loads", async ({ skip }) => {
     needLinks(skip);
     expectRendered(
       await compileTemplate("link-in", options(at("root"))),
@@ -271,7 +269,7 @@ describe("template confinement by real location", () => {
     );
   });
 
-  test("a root that is itself a symlink works for relative and absolute names (D-04)", async ({
+  test("a root that is itself a symlink works for relative and absolute names", async ({
     skip,
   }) => {
     needLinks(skip);
@@ -283,7 +281,7 @@ describe("template confinement by real location", () => {
     }
   });
 
-  test("an earlier root's escaping candidate does not hide a later root's file (D-24)", async ({
+  test("an earlier root's escaping candidate does not hide a later root's file", async ({
     skip,
   }) => {
     needLinks(skip);
@@ -292,7 +290,7 @@ describe("template confinement by real location", () => {
     expectRendered(await compileTemplate("shared/u", both), "M-b-shared-u");
   });
 
-  test("every configured root counts, and a file inside any of them is accepted (D-07)", async () => {
+  test("every configured root counts, and a file inside any of them is accepted", async () => {
     expectRendered(
       await compileTemplate("../b/b", options(at("root"), [at("b")])),
       "M-b-b"
@@ -304,7 +302,7 @@ describe("template confinement by real location", () => {
     expect(error.path).toBe(at("b", "b.js"));
   });
 
-  test("a missing root contributes nothing that can load and reports TEMPLATE_NOT_FOUND (edge SEC-01/empty)", async () => {
+  test("a missing root contributes nothing that can load and reports TEMPLATE_NOT_FOUND (empty)", async () => {
     expectRendered(
       await compileTemplate("ok", options(at("missing"), [at("root")])),
       "M-root-ok"
@@ -324,11 +322,11 @@ describe("template confinement by real location", () => {
     );
   });
 
-  test("a dangling symlink inside a root is TEMPLATE_NOT_FOUND (accepted planter-only exception, D-25)", async ({
+  test("a dangling symlink inside a root is TEMPLATE_NOT_FOUND (accepted planter-only exception)", async ({
     skip,
   }) => {
     needLinks(skip);
-    // D-25 and threat T-03-11: a link INSIDE the root whose target is missing reads as a plain miss, while the
+    // A link INSIDE the root whose target is missing reads as a plain miss, while the
     // same shape with an existing outside target is refused. Only someone who can already write into the
     // template folder can observe the difference, so no code closes it.
     expectAdapterError(
@@ -341,7 +339,7 @@ describe("template confinement by real location", () => {
     );
   });
 
-  test("an outside candidate is skipped and the first inside regular file in lookup order loads (D-24, edge SEC-01/ordering)", async ({
+  test("an outside candidate is skipped and the first inside regular file in lookup order loads (ordering)", async ({
     skip,
   }) => {
     needLinks(skip);
@@ -357,7 +355,7 @@ describe("template confinement by real location", () => {
     );
   });
 
-  test("an escape with no inside file is TEMPLATE_OUTSIDE_ROOT, never TEMPLATE_NOT_FOUND (D-24)", async ({
+  test("an escape with no inside file is TEMPLATE_OUTSIDE_ROOT, never TEMPLATE_NOT_FOUND", async ({
     skip,
   }) => {
     needLinks(skip);
@@ -375,7 +373,7 @@ describe("template confinement by real location", () => {
     }
   });
 
-  test("names are compared as the filesystem stores them: no decoding, folding or normalising (edge SEC-01/encoding)", async () => {
+  test("names are compared as the filesystem stores them: no decoding, folding or normalising (encoding)", async () => {
     expectAdapterError(
       await compileTemplate("%2e%2e%2fout%2fsecret", options(at("root"))),
       NOT_FOUND
@@ -391,7 +389,7 @@ describe("template confinement by real location", () => {
     }
   });
 
-  test("concurrent sends of an escaping and an inside name each get their own outcome (edge SEC-01/concurrency)", async () => {
+  test("concurrent sends of an escaping and an inside name each get their own outcome (concurrency)", async () => {
     const [escaping, inside] = await Promise.all([
       compileTemplate("../out/secret", options(at("root"))),
       compileTemplate("ok", options(at("root"))),
@@ -429,7 +427,7 @@ describe("template confinement by real location", () => {
     expect(looped.failure?.cause).toMatchObject({ code: "ELOOP" });
   });
 
-  test("the verified real path is the loaded path: error.path is the real path on INVALID_EXPORT and RENDER_FAILED (D-22)", async ({
+  test("the verified real path is the loaded path: error.path is the real path on INVALID_EXPORT and RENDER_FAILED", async ({
     skip,
   }) => {
     needLinks(skip);
@@ -520,8 +518,8 @@ function misplacedOptions(place: string): MailerOptions {
   return loose;
 }
 
-describe("unsafeAllowOutsideTemplateDir (D-11, D-12, D-13, D-19)", () => {
-  test("with the opt-out an absolute name outside, ../ and a symlink out load as in 0.2.x (D-11)", async ({
+describe("unsafeAllowOutsideTemplateDir", () => {
+  test("with the opt-out an absolute name outside, ../ and a symlink out load as in 0.2.x", async ({
     skip,
   }) => {
     needLinks(skip);
@@ -538,7 +536,7 @@ describe("unsafeAllowOutsideTemplateDir (D-11, D-12, D-13, D-19)", () => {
     }
   });
 
-  test("NUL, URL-scheme and verbatim device names stay INVALID_TEMPLATE_NAME with the opt-out on every OS (D-11)", async () => {
+  test("NUL, URL-scheme and verbatim device names stay INVALID_TEMPLATE_NAME with the opt-out on every OS", async () => {
     for (const name of ["ok\0", "file:x", "\\\\?\\C:\\x"]) {
       const outcome = await compileTemplate(
         name,
@@ -550,7 +548,7 @@ describe("unsafeAllowOutsideTemplateDir (D-11, D-12, D-13, D-19)", () => {
   });
 
   test.skipIf(process.platform === "win32")(
-    "drive-letter and UNC names stay INVALID_TEMPLATE_NAME with the opt-out off Windows (D-19)",
+    "drive-letter and UNC names stay INVALID_TEMPLATE_NAME with the opt-out off Windows",
     async () => {
       for (const name of ["C:\\x", "//srv/sh/x"]) {
         const outcome = await compileTemplate(
@@ -563,7 +561,7 @@ describe("unsafeAllowOutsideTemplateDir (D-11, D-12, D-13, D-19)", () => {
     }
   );
 
-  test("the key in template.options, template, the top level, the options bag, mail.data or context does not enable it (D-12)", async () => {
+  test("the key in template.options, template, the top level, the options bag, mail.data or context does not enable it", async () => {
     for (const place of [
       "template.options",
       "template",
@@ -593,7 +591,7 @@ describe("unsafeAllowOutsideTemplateDir (D-11, D-12, D-13, D-19)", () => {
     }
   });
 
-  test("constructor values other than the literal true do not enable it (D-12)", async () => {
+  test("constructor values other than the literal true do not enable it", async () => {
     for (const value of ["true", 1, {}]) {
       const loose: ReactAdapterOptions = {};
       Object.assign(loose, { unsafeAllowOutsideTemplateDir: value });
@@ -608,7 +606,7 @@ describe("unsafeAllowOutsideTemplateDir (D-11, D-12, D-13, D-19)", () => {
     }
   });
 
-  test("an unsafeAllowOutsideTemplateDir inherited from Object.prototype does not enable it, with no argument or with {} (D-12)", async () => {
+  test("an unsafeAllowOutsideTemplateDir inherited from Object.prototype does not enable it, with no argument or with {}", async () => {
     const key = "unsafeAllowOutsideTemplateDir";
     expect(
       Reflect.defineProperty(Object.prototype, key, {
@@ -631,7 +629,7 @@ describe("unsafeAllowOutsideTemplateDir (D-11, D-12, D-13, D-19)", () => {
     }
   });
 
-  test("constructing with the opt-out and rendering outside a root never warns or logs (D-13)", async () => {
+  test("constructing with the opt-out and rendering outside a root never warns or logs", async () => {
     const spies = [
       vi.spyOn(process, "emitWarning").mockImplementation(() => undefined),
       vi.spyOn(console, "warn").mockImplementation(() => undefined),
@@ -741,7 +739,7 @@ describe("unsafeAllowOutsideTemplateDir (D-11, D-12, D-13, D-19)", () => {
   });
 
   test.runIf(process.platform === "win32")(
-    "a drive-letter absolute name inside a root loads and one outside every root is TEMPLATE_OUTSIDE_ROOT (D-05 exception)",
+    "a drive-letter absolute name inside a root loads and one outside every root is TEMPLATE_OUTSIDE_ROOT (Windows only)",
     async () => {
       expectRendered(
         await compileTemplate(at("root", "ok.js"), options(at("root"))),

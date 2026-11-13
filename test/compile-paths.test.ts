@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 
 // test/COMPILE-PATHS.md lists every compile() path with the test that exercises it. This file checks that list
-// against the suite on every `npm test` (TEST-01, D-15): a row that cites a file or a test title that does not
+// against the suite on every `npm test`: a row that cites a file or a test title that does not
 // exist, a test file that no row cites, or an area with no row fails here.
 
 const AREAS = [
@@ -418,7 +418,7 @@ function lineOf(markdown: string, predicate: (line: string) => boolean) {
   return line;
 }
 
-describe("the compile() path list (TEST-01, D-15)", () => {
+describe("the compile() path list", () => {
   test("test/COMPILE-PATHS.md cites only files and titles that exist, covers every test file and every area", async () => {
     const { markdown, sources, testFiles } = await loadSuite();
     expect(validateMap(markdown, sources, testFiles)).toEqual([]);

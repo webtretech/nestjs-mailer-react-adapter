@@ -162,7 +162,7 @@ module.exports = function Template() { return "never"; };
     }
   });
 
-  test("template-loader: a missing dependency fails as TEMPLATE_LOAD_FAILED naming MODULE_NOT_FOUND and no path (D-21)", async () => {
+  test("template-loader: a missing dependency fails as TEMPLATE_LOAD_FAILED naming MODULE_NOT_FOUND and no path", async () => {
     const file = await write(
       "needs-missing-dependency.js",
       `require("./definitely-missing-dependency");\nmodule.exports = function Template() { return "never"; };\n`
@@ -181,7 +181,7 @@ module.exports = function Template() { return "never"; };
     expect(outcome.html).toBeUndefined();
   });
 
-  test("template-loader: a syntax error's own message is quoted (D-21)", async () => {
+  test("template-loader: a syntax error's own message is quoted", async () => {
     await write("syntax-quoted.js", "module.exports = (\n");
     const outcome = await send("syntax-quoted");
     const error = expectAdapterError(
@@ -196,7 +196,7 @@ module.exports = function Template() { return "never"; };
     expect(error.message).not.toContain(dir);
   });
 
-  test("template-loader: an error thrown at load without a code is quoted (D-21)", async () => {
+  test("template-loader: an error thrown at load without a code is quoted", async () => {
     await write("throws-own-boom.js", `throw new Error("own boom");\n`);
     const outcome = await send("throws-own-boom");
     const error = expectAdapterError(
@@ -207,7 +207,7 @@ module.exports = function Template() { return "never"; };
     expect(error.message).not.toContain(dir);
   });
 
-  test("template-loader: a thrown error with a string code shows only the code (D-21)", async () => {
+  test("template-loader: a thrown error with a string code shows only the code", async () => {
     await write(
       "throws-coded.js",
       `const failure = new Error("secret text");\nfailure.code = "E_TEMPLATE";\nthrow failure;\n`
@@ -226,7 +226,7 @@ module.exports = function Template() { return "never"; };
     });
   });
 
-  test("template-loader: a non-Error value thrown at load is quoted (D-21)", async () => {
+  test("template-loader: a non-Error value thrown at load is quoted", async () => {
     await write("throws-string.js", `throw "plain string failure";\n`);
     const outcome = await send("throws-string");
     const error = expectAdapterError(
@@ -238,8 +238,8 @@ module.exports = function Template() { return "never"; };
   });
 
   // The one place a message can carry an absolute path: text thrown by the template or its dependencies is
-  // quoted as given (D-21), so a path inside that text is quoted too. Coded Node errors never reach it.
-  test("template-loader: an uncoded Error whose text carries an absolute path is quoted, the D-21 exception to the no-path rule", async () => {
+  // quoted as given, so a path inside that text is quoted too. Coded Node errors never reach it.
+  test("template-loader: an uncoded Error whose text carries an absolute path is quoted, an exception to the no-path rule", async () => {
     await write(
       "throws-path-text.js",
       `throw new Error("bad config in " + __filename);\n`
