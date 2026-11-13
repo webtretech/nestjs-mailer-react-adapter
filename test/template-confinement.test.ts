@@ -729,15 +729,9 @@ describe("unsafeAllowOutsideTemplateDir", () => {
     const realRoots = await Promise.all(
       both.map((directory) => fs.realpath(directory))
     );
+    // Judged by the production rule, so a name such as `..x` is not mistaken for an escape.
     const inside = (file: string): boolean =>
-      realRoots.some((realRoot) => {
-        const relative = path.relative(realRoot, file);
-        return (
-          relative !== "" &&
-          !relative.startsWith("..") &&
-          !path.isAbsolute(relative)
-        );
-      });
+      realRoots.some((realRoot) => isInsideRoot(realRoot, file));
 
     for (const [name, directories, expected] of loading) {
       const file = await locateTemplate(
