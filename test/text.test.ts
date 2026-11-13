@@ -8,6 +8,7 @@ import type * as RenderModule from "@react-email/render";
 import { createElement } from "react";
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -95,6 +96,12 @@ beforeEach(() => {
   vi.mocked(unstableToPlainText).mockClear();
   // plainText is a deprecated key; keep the warning out of the test output.
   vi.spyOn(process, "emitWarning").mockImplementation(() => undefined);
+});
+
+afterEach(() => {
+  // Puts process.emitWarning back so the stub does not outlive its test. The render spies are vi.fn(actual)
+  // wrappers, so they keep their implementation and are only cleared in beforeEach.
+  vi.restoreAllMocks();
 });
 
 describe("text part from one render", () => {
@@ -296,20 +303,27 @@ describe("text part from one render", () => {
     expect("text" in data).toBe(false);
   });
 
-  test("the 0.2.x option shapes still type-check and construct", () => {
-    const typeChecks = [
-      new ReactAdapter({}),
-      new ReactAdapter({ pretty: true }),
-      new ReactAdapter({ plainText: true }),
-      new ReactAdapter({
-        plainText: true,
-        htmlToTextOptions: { wordwrap: 80 },
-      }),
-      new ReactAdapter({ pretty: false, plainText: false }),
+  // The literals are type-checked by tsc; the runtime part sends one template through each shape.
+  test("the 0.2.x option shapes still type-check and construct", async () => {
+    const shapes: { options: ReactAdapterOptions; text: boolean }[] = [
+      { options: {}, text: false },
+      { options: { pretty: true }, text: false },
+      { options: { plainText: true }, text: true },
+      {
+        options: { plainText: true, htmlToTextOptions: { wordwrap: 80 } },
+        text: true,
+      },
+      { options: { pretty: false, plainText: false }, text: false },
     ];
-    expect(typeChecks).toHaveLength(5);
-    for (const adapter of typeChecks) {
-      expect(adapter).toBeInstanceOf(ReactAdapter);
+    for (const { options, text } of shapes) {
+      const label = JSON.stringify(options);
+      const { outcome, data } = await send(new ReactAdapter(options));
+      expectSuccess(outcome);
+      expect(String(data["html"]).startsWith(DOCTYPE), label).toBe(true);
+      expect("text" in data, label).toBe(text);
+      if (options.pretty === true) {
+        expect(data["html"], label).toBe(PRETTY);
+      }
     }
   });
 });
