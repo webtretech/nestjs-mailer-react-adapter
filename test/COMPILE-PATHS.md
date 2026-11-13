@@ -41,7 +41,7 @@ Each row names one `compile()` path and the test that exercises it, by area, rep
 | resolver | relative name with no template directory: TEMPLATE_DIR_MISSING | test/template-lookup.test.ts | a relative name with neither dir nor dirs is TEMPLATE_DIR_MISSING with no searched list |
 | resolver | template.dir missing with template.dirs set | test/template-lookup.test.ts | template.dir missing with template.dirs set searches dirs only |
 | resolver | template.dirs that is not an array never throws | test/template-lookup.test.ts | template.dirs that is not an array, or holds non-strings and empty strings, never throws |
-| resolver | missing template.dir through the callback | test/render.test.ts | missing template.dir reports ERR_REACT_ADAPTER_TEMPLATE_DIR_MISSING through the callback and never throws (changed in 0.3.0, CORE-02) |
+| resolver | missing template.dir through the callback | test/render.test.ts | missing template.dir reports ERR_REACT_ADAPTER_TEMPLATE_DIR_MISSING through the callback and never throws (changed in 0.3.0) |
 | resolver | missing template reports every searched path | test/render.test.ts | missing template reports ERR_REACT_ADAPTER_TEMPLATE_NOT_FOUND once with every searched path (changed in 0.3.0) |
 | resolver | relative template.dir resolves against process.cwd() | test/render.test.ts | characterization: relative template.dir resolves against process.cwd() |
 | resolver | stat failure other than not-here is TEMPLATE_LOAD_FAILED | test/template-lookup.test.ts | a stat failure other than not-here is TEMPLATE_LOAD_FAILED with the cause |
@@ -119,14 +119,14 @@ Each row names one `compile()` path and the test that exercises it, by area, rep
 | loader | dotted template name | test/render.test.ts | characterization: dotted template name dotted.v2 |
 | loader | ERR_REQUIRE_ESM falls back to import() | test/loader-fallback.test.ts | characterization: ERR_REQUIRE_ESM from require() falls back to import() |
 | loader | ERR_REQUIRE_ASYNC_MODULE falls back to import() | test/loader-fallback.test.ts | characterization: ERR_REQUIRE_ASYNC_MODULE from require() falls back to import() |
-| loader | any other require() error never falls back | test/loader-fallback.test.ts | any other require() error is reported once as ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED and never falls back (changed in 0.3.0, D-14) |
+| loader | any other require() error never falls back | test/loader-fallback.test.ts | any other require() error is reported once as ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED and never falls back (changed in 0.3.0) |
 | loader | a .cjs template is never retried through import() | test/template-loader.test.ts | template-loader: a .cjs template whose dependency needs import() is not evaluated a second time |
 | loader | native ESM that failed to load stays failed (Phase 2 D-22) | scripts/verify-build.mjs | esm-throws |
 | loader | memo() default export | test/template-loader.test.ts | template-loader: a memo() default export renders |
 | loader | forwardRef() default export | test/template-loader.test.ts | template-loader: a forwardRef() default export renders |
 | loader | INVALID_EXPORT for non-component exports | test/template-loader.test.ts | template-loader: module.exports = %s fails once as INVALID_EXPORT saying what was found |
-| loader | INVALID_EXPORT for exports.default without __esModule | test/render.test.ts | CJS template with exports.default and no __esModule fails with ERR_REACT_ADAPTER_INVALID_EXPORT naming the shape (changed in 0.3.0, D-28) |
-| loader | INVALID_EXPORT for an ESM template without a default export | test/render.test.ts | ESM template with no default export fails with ERR_REACT_ADAPTER_INVALID_EXPORT listing its exports (changed in 0.3.0, CORE-05) |
+| loader | INVALID_EXPORT for exports.default without __esModule | test/render.test.ts | CJS template with exports.default and no __esModule fails with ERR_REACT_ADAPTER_INVALID_EXPORT naming the shape (changed in 0.3.0) |
+| loader | INVALID_EXPORT for an ESM template without a default export | test/render.test.ts | ESM template with no default export fails with ERR_REACT_ADAPTER_INVALID_EXPORT listing its exports (changed in 0.3.0) |
 | loader | INVALID_EXPORT has no cause | test/template-loader.test.ts | template-loader: INVALID_EXPORT has no cause |
 | loader | LOAD_FAILED for a syntax error | test/template-loader.test.ts | template-loader: a syntax error fails once as TEMPLATE_LOAD_FAILED with the SyntaxError as cause |
 | loader | a template that throws at load is retried once fixed | test/template-loader.test.ts | template-loader: a CommonJS template that throws at load is retried on the next send once it is fixed |

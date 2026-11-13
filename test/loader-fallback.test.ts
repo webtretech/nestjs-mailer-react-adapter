@@ -73,7 +73,7 @@ describe("loadTemplate import() fallback", () => {
     expect(outcome.html).toContain("<h1>esm-mjs</h1><p>Body</p>");
   });
 
-  test("any other require() error is reported once as ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED and never falls back (changed in 0.3.0, D-14)", async () => {
+  test("any other require() error is reported once as ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED and never falls back (changed in 0.3.0)", async () => {
     stub.code = "EACCES";
     const outcome = await run("esm.mjs");
     expect(outcome.calls).toBe(1);

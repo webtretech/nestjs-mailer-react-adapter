@@ -143,7 +143,7 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
     expect(outcome.html).toBeUndefined();
   });
 
-  test("missing template.dir reports ERR_REACT_ADAPTER_TEMPLATE_DIR_MISSING through the callback and never throws (changed in 0.3.0, CORE-02)", async () => {
+  test("missing template.dir reports ERR_REACT_ADAPTER_TEMPLATE_DIR_MISSING through the callback and never throws (changed in 0.3.0)", async () => {
     // 0.2.5 threw a TypeError synchronously here.
     const received: unknown[][] = [];
     let returned = false;
@@ -190,7 +190,7 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
     await expectRender("esm-pkg/welcome", "esm-pkg-welcome");
   });
 
-  test("CJS template with exports.default and no __esModule fails with ERR_REACT_ADAPTER_INVALID_EXPORT naming the shape (changed in 0.3.0, D-28)", async () => {
+  test("CJS template with exports.default and no __esModule fails with ERR_REACT_ADAPTER_INVALID_EXPORT naming the shape (changed in 0.3.0)", async () => {
     const outcome = await compileTemplate(
       "exports-default-no-esmodule",
       mailerOptions(FIXTURES)
@@ -208,7 +208,7 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
     expect(outcome.html).toBeUndefined();
   });
 
-  test("ESM template with no default export fails with ERR_REACT_ADAPTER_INVALID_EXPORT listing its exports (changed in 0.3.0, CORE-05)", async () => {
+  test("ESM template with no default export fails with ERR_REACT_ADAPTER_INVALID_EXPORT listing its exports (changed in 0.3.0)", async () => {
     const outcome = await compileTemplate(
       "named-only.mjs",
       mailerOptions(FIXTURES)
@@ -225,7 +225,7 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
   });
 
   // Exercises loadTemplate's import() fallback: require() throws ERR_REQUIRE_ASYNC_MODULE for top-level await.
-  // Under Vitest this import() runs through Vite, not natively; plan 01-04's verify-build covers the native run.
+  // Under Vitest this import() runs through Vite, not natively; scripts/verify-build.mjs covers the native run.
   test("characterization: top-level-await ESM template loads through the import() fallback", async () => {
     const file = path.join(FIXTURES, "tla-fallback.mjs");
     let code: unknown;
@@ -239,7 +239,7 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
     await expectRender("tla-fallback.mjs", "tla-fallback");
   });
 
-  // Pins the interim loader's dotted-name outcome, which may differ from 0.2.5 (D-20).
+  // `.v2` is not a known extension, so src/template.lookup.ts keeps every dot in the name and appends .js/.cjs/.mjs to it.
   test("characterization: dotted template name dotted.v2", async () => {
     await expectRender("dotted.v2", "dotted-v2");
   });
