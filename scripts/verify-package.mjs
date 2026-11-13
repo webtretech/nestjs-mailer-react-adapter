@@ -3,9 +3,12 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import {
   CheckFailure,
+  exitDescription,
   repoRoot,
   resolveTarball,
+  RUN_TIMEOUT_MS,
   spawnAsync,
+  startFailure,
 } from "./lib/scratch.mjs";
 
 // Lints the packed tarball with publint and attw, the same way locally and in CI. Both tools are
@@ -50,13 +53,18 @@ function binScript(packageDir, binName) {
   return path.join(packageDir, relative);
 }
 
+// Resolves to null when the tool passed, else a message that says how it failed: it could not start,
+// it timed out, it was killed by a signal, or it exited with a status.
 async function runTool(label, script, args) {
   console.log(`verify-package: running ${label} ${args.join(" ")}`);
   const result = await spawnAsync(process.execPath, [script, ...args], {
     stdio: "inherit",
+    timeout: RUN_TIMEOUT_MS,
   });
-  // A tool that could not start or was killed by a signal has no exit status: treat it as failed.
-  return result.status ?? 1;
+  if (result.error !== undefined) {
+    return startFailure(label, result.error, RUN_TIMEOUT_MS).message;
+  }
+  return result.status === 0 ? null : `${label} ${exitDescription(result)}`;
 }
 
 let tarballCleanup = () => {};
@@ -75,23 +83,15 @@ try {
   tarballCleanup = cleanup;
 
   // Both always run, so one failing tool never hides the other's report.
-  const publintStatus = await runTool("publint", publint, [
-    "run",
-    tarball,
-    "--strict",
-  ]);
-  const attwStatus = await runTool("attw", attw, [
-    tarball,
-    "--profile",
-    "strict",
-  ]);
+  const failures = [
+    await runTool("publint", publint, ["run", tarball, "--strict"]),
+    await runTool("attw", attw, [tarball, "--profile", "strict"]),
+  ].filter((failure) => failure !== null);
 
-  if (publintStatus === 0 && attwStatus === 0) {
+  if (failures.length === 0) {
     console.log("verify-package: ok publint attw");
   } else {
-    throw new CheckFailure(
-      `publint exited ${publintStatus}, attw exited ${attwStatus}`
-    );
+    throw new CheckFailure(failures.join(", "));
   }
 } catch (error) {
   if (error instanceof CheckFailure) {
