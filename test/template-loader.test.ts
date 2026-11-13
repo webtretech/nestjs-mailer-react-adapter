@@ -235,8 +235,9 @@ module.exports = function Template() { return "never"; };
     expect(error.cause).toBe("plain string failure");
   });
 
-  // The one place a message can carry an absolute path: text thrown by the template or its dependencies is
-  // quoted as given, so a path inside that text is quoted too. Coded Node errors never reach it.
+  // The one place a message can carry an absolute path: the text of a plain Error thrown by the template or its
+  // dependencies is quoted as given, so a path inside that text is quoted too. A coded error and a SyntaxError
+  // that names a path (a malformed .json dependency) never reach it; see the tests below.
   test("an uncoded Error whose text carries an absolute path is quoted, an exception to the no-path rule", async () => {
     await write(
       "throws-path-text.js",
@@ -256,6 +257,63 @@ module.exports = function Template() { return "never"; };
     }
     expect(error.message).not.toContain("the underlying error is in cause");
     expect(outcome.html).toBeUndefined();
+  });
+});
+
+describe("template-loader: a SyntaxError that names a path", () => {
+  // A separator-rooted path, a drive path, a UNC path or a file: URL anywhere in the text.
+  const ABSOLUTE_PATH =
+    /(?:^|[\s"'(=])(?:[A-Za-z]:[\\/]|\\\\|\/(?=[^\s"'/]))|file:\/\//;
+
+  test("a malformed .json dependency fails as TEMPLATE_LOAD_FAILED with no path in the message", async () => {
+    await write("broken-data.json", "{ not json");
+    await write(
+      "needs-broken-json.js",
+      `const data = require("./broken-data.json");\nmodule.exports = function Template() { return data; };\n`
+    );
+    const outcome = await send("needs-broken-json");
+    const error = expectAdapterError(
+      outcome,
+      "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED"
+    );
+    expect(error.message).toContain("a SyntaxError");
+    expect(error.message).toContain("the underlying error is in cause");
+    expect(error.message).not.toContain(dir);
+    expect(error.message).not.toContain("broken-data.json");
+    expect(error.message).not.toMatch(ABSOLUTE_PATH);
+    expect(error.cause).toBeInstanceOf(SyntaxError);
+    if (error.cause instanceof Error) {
+      expect(error.cause.message).toContain("broken-data.json");
+    }
+    expect(outcome.html).toBeUndefined();
+  });
+
+  test("a SyntaxError the template throws with a path in its text shows only its name", async () => {
+    await write(
+      "throws-syntax-path.js",
+      `throw new SyntaxError("bad syntax in " + __filename);\n`
+    );
+    const error = expectAdapterError(
+      await send("throws-syntax-path"),
+      "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED"
+    );
+    expect(error.message).toContain("a SyntaxError");
+    expect(error.message).not.toContain("bad syntax in");
+    expect(error.message).not.toMatch(ABSOLUTE_PATH);
+    expect(error.cause).toBeInstanceOf(SyntaxError);
+  });
+
+  test("a SyntaxError without a path in its text is still quoted", async () => {
+    await write(
+      "throws-syntax-plain.js",
+      `throw new SyntaxError("unexpected token in the template data");\n`
+    );
+    const error = expectAdapterError(
+      await send("throws-syntax-plain"),
+      "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED"
+    );
+    expect(error.message).toContain("unexpected token in the template data");
+    expect(error.message).not.toContain("the underlying error is in cause");
   });
 });
 

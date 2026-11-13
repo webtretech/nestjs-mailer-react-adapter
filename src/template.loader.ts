@@ -74,6 +74,20 @@ async function importOrRequire(absolute: string): Promise<LoadedTemplate> {
   }
 }
 
+// An absolute path inside text: a drive path (C:\x or C:/x), a UNC path, a file: URL, or a rooted POSIX path
+// that starts the text or follows white space, a quote, a parenthesis or an equals sign. Leaning towards a
+// false positive is deliberate: the only cost of one is that the message shows the error name instead of its text.
+const ABSOLUTE_PATH_IN_TEXT =
+  /(?:^|[\s"'(=])(?:[A-Za-z]:[\\/]|\\\\|\/(?=[^\s"'/]))|file:\/\//;
+
+function isSyntaxErrorNamingAPath(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.name === "SyntaxError" &&
+    ABSOLUTE_PATH_IN_TEXT.test(error.message)
+  );
+}
+
 // Nothing is cached here: Node does not cache a CommonJS module that threw while loading, so the next send retries it.
 // A native ESM module that failed to evaluate stays failed until the process restarts; no retry is added.
 export async function loadTemplate(
@@ -86,16 +100,21 @@ export async function loadTemplate(
     return await importOrRequire(absolute);
   } catch (error) {
     // A cause with a string code shows only the code (Node's own messages embed absolute paths and
-    // require stacks); any other cause is quoted. The whole cause stays on error.cause.
+    // require stacks). A SyntaxError whose message names an absolute path, which is how Node reports a malformed
+    // .json dependency (no code, the file path in front of the parser's text), shows only its name. Any other
+    // cause is quoted. The whole cause stays on error.cause.
     // Exception to the no-path rule: text thrown by the template or its dependencies is quoted as given and
-    // may carry an absolute path (for example `new Error("bad config in " + __dirname)`); coded Node errors never do.
+    // may carry an absolute path (for example `new Error("bad config in " + __dirname)`); a coded error and a
+    // SyntaxError that names a path never do.
     const code = isRecord(error) ? error["code"] : undefined;
     const reason =
       typeof code === "string"
         ? `the error code is ${code}; the underlying error is in cause`
-        : error instanceof Error
-          ? error.message
-          : String(error);
+        : isSyntaxErrorNamingAPath(error)
+          ? "a SyntaxError; the underlying error is in cause"
+          : error instanceof Error
+            ? error.message
+            : String(error);
     throw new ReactAdapterError(
       REACT_ADAPTER_ERROR_CODES.TEMPLATE_LOAD_FAILED,
       `Template ${quotedTemplateName(template)} failed to load: ${reason}. A CommonJS template is loaded again on the next send; a native ESM template that failed to load stays failed until the application restarts.`,
