@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
@@ -12,6 +11,7 @@ import {
   resolveTarball,
   RUN_TIMEOUT_MS,
   runNpm,
+  spawnAsync,
   startFailure,
   WELCOME_TEMPLATE_SOURCE,
 } from "./lib/scratch.mjs";
@@ -89,7 +89,7 @@ try {
   const leg = parseLeg(process.argv.slice(2));
   keep = leg.keep;
 
-  const { tarball, cleanup } = resolveTarball(leg.tarball);
+  const { tarball, cleanup } = await resolveTarball(leg.tarball);
   tarballCleanup = cleanup;
 
   scratch = makeScratch("react-adapter-contract-");
@@ -106,7 +106,7 @@ try {
   // against the caller's npm config), so that a peer range wider than what actually works fails
   // here with ERESOLVE. Floating legs name no nodemailer and take whatever their mailer peer
   // resolves to; Nest versions float to the newest that fit.
-  runNpm(
+  await runNpm(
     [
       "install",
       ...INSTALL_FLAGS,
@@ -147,15 +147,12 @@ try {
     path.join(scratch, "contract.test.mjs")
   );
 
-  const tests = spawnSync(
+  const tests = await spawnAsync(
     process.execPath,
     ["--test", "--test-reporter=tap", "contract.test.mjs"],
     {
       cwd: scratch,
-      shell: false,
-      encoding: "utf8",
       stdio: ["inherit", "pipe", "inherit"],
-      maxBuffer: 64 * 1024 * 1024,
       timeout: RUN_TIMEOUT_MS,
       env: {
         ...process.env,

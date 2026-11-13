@@ -277,7 +277,7 @@ try {
   const args = parseSmokeArgs(process.argv.slice(2));
   checkExpectedNode(args["expect-node"]);
 
-  const { tarball, cleanup } = resolveTarball(args.tarball);
+  const { tarball, cleanup } = await resolveTarball(args.tarball);
   tarballCleanup = cleanup;
 
   scratch = makeScratch("react-adapter-smoke-");
@@ -293,7 +293,7 @@ try {
   // the empty-install case. INSTALL_FLAGS turns npm strict engine checking off: on Node 20.19.0 the
   // mailer's @nestjs/common pulls file-type, which asks for Node 22 and warns EBADENGINE. The
   // warning is harmless (install, require, import and render all work on 20.19.0).
-  runNpm(
+  await runNpm(
     [
       "install",
       ...INSTALL_FLAGS,
@@ -324,13 +324,13 @@ try {
     "package.json": JSON.stringify({ type: "commonjs" }),
     "run.cjs": CJS_CONSUMER,
   });
-  run(process.execPath, ["run.cjs"], { cwd: cjsDir, env });
+  await run(process.execPath, ["run.cjs"], { cwd: cjsDir, env });
 
   const esmDir = writeConsumer(scratch, "esm", {
     "package.json": JSON.stringify({ type: "module" }),
     "run.mjs": ESM_CONSUMER,
   });
-  run(process.execPath, ["run.mjs"], { cwd: esmDir, env });
+  await run(process.execPath, ["run.mjs"], { cwd: esmDir, env });
 
   // Compile with the lockfile's tsc, run from the consumer directory so node16 resolution walks up
   // to the shared <scratch>/node_modules. The two node16 consumers are emitted and run (the CJS
@@ -368,9 +368,12 @@ try {
     });
     mkdirSync(path.join(dir, "src"));
     writeFileSync(path.join(dir, "src", "run.ts"), tsConsumer(consumer.name));
-    run(process.execPath, [tsc, "-p", dir]);
+    await run(process.execPath, [tsc, "-p", dir]);
     if (consumer.execute) {
-      run(process.execPath, [path.join("out", "run.js")], { cwd: dir, env });
+      await run(process.execPath, [path.join("out", "run.js")], {
+        cwd: dir,
+        env,
+      });
     } else {
       console.log(`consumer ${consumer.name} ok`);
     }

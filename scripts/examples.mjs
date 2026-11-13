@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
   cpSync,
@@ -21,6 +20,7 @@ import {
   RUN_TIMEOUT_MS,
   run,
   runNpm,
+  spawnAsync,
   startFailure,
 } from "./lib/scratch.mjs";
 
@@ -73,11 +73,9 @@ function parseCommand(argv) {
 }
 
 // Runs the CI recipe file and returns the child's result; stdout and stderr are echoed.
-function runRecipe(file, cwd) {
-  const result = spawnSync(process.execPath, [file], {
+async function runRecipe(file, cwd) {
+  const result = await spawnAsync(process.execPath, [file], {
     cwd,
-    shell: false,
-    encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     timeout: RUN_TIMEOUT_MS,
   });
@@ -96,7 +94,7 @@ try {
   const command = parseCommand(process.argv.slice(2));
   keep = command.keep;
 
-  const { tarball, cleanup } = resolveTarball(command.tarball);
+  const { tarball, cleanup } = await resolveTarball(command.tarball);
   tarballCleanup = cleanup;
 
   scratch = makeScratch("react-adapter-example-");
@@ -117,7 +115,7 @@ try {
   delete examplePackage.dependencies[ADAPTER];
   writeFileSync(packageFile, `${JSON.stringify(examplePackage, null, 2)}\n`);
 
-  runNpm(["install", ...INSTALL_FLAGS, tarball], { cwd: app });
+  await runNpm(["install", ...INSTALL_FLAGS, tarball], { cwd: app });
 
   const adapter = installedVersion(app, ADAPTER);
   const mailer = installedVersion(app, "@nestjs-modules/mailer");
@@ -142,7 +140,7 @@ try {
   }
 
   // nest build; the SWC example's postbuild runs gulp.
-  runNpm(["run", "build"], { cwd: app });
+  await runNpm(["run", "build"], { cwd: app });
   if (!existsSync(path.join(app, "dist", "templates", "welcome.js"))) {
     throw new CheckFailure("build did not produce dist/templates/welcome.js");
   }
@@ -151,7 +149,7 @@ try {
     path.join(import.meta.dirname, "examples", "example.check.mjs"),
     path.join(app, "example.check.mjs")
   );
-  run(process.execPath, ["example.check.mjs"], {
+  await run(process.execPath, ["example.check.mjs"], {
     cwd: app,
     env: {
       ...process.env,
@@ -176,7 +174,7 @@ try {
   const recipeFile = path.join(app, "check-templates.mjs");
   writeFileSync(recipeFile, `${recipe[1]}\n`);
 
-  const positive = runRecipe(recipeFile, app);
+  const positive = await runRecipe(recipeFile, app);
   if (positive.status !== 0) {
     throw new CheckFailure(`CI recipe ${exitDescription(positive)}`);
   }
@@ -189,7 +187,7 @@ try {
   console.log(
     "examples: the next recipe run must fail (empty template directory)"
   );
-  const empty = runRecipe(recipeFile, emptyCase);
+  const empty = await runRecipe(recipeFile, emptyCase);
   if (empty.status === 0) {
     throw new CheckFailure("CI recipe passed on an empty template directory");
   }

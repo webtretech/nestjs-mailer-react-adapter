@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import {
   mkdtempSync,
   readdirSync,
@@ -37,11 +37,94 @@ export function exitDescription(result) {
     : `exited ${result.status}`;
 }
 
-// An argv array with no shell, so nothing a caller passes is ever interpreted by a shell.
-function spawnChecked(label, command, args, options) {
-  const result = spawnSync(command, args, {
+// Interrupts. The default action of SIGINT and SIGTERM ends Node on the spot, without unwinding the
+// `finally` that removes the scratch directory (a full node_modules). A handler alone is not enough
+// either: these scripts are straight-line code, so a handler can only run while a child process is
+// awaited, and it must make the run stop instead of letting it go on to the next step. So the first
+// signal is recorded and passed on to the running children (a Ctrl-C already reached them through
+// the terminal's process group, but a signal sent to this process alone has not), spawnAsync then
+// fails with CheckFailure once the child is gone, the script's own catch and `finally` run as for any
+// other failure, and the exit code is 128 plus the signal number. A second signal exits at once, for
+// a user who does not want to wait for the cleanup.
+let interrupted;
+const runningChildren = new Set();
+
+function interruptExitCode() {
+  return 128 + os.constants.signals[interrupted];
+}
+
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => {
+    if (interrupted !== undefined) {
+      process.exit(interruptExitCode());
+    }
+    interrupted = signal;
+    for (const child of runningChildren) child.kill(signal);
+  });
+}
+
+// An interrupt that arrives while no child is running (during file work, or after the last child)
+// still fails the run: the exit code is set here whatever the script decided.
+process.on("exit", () => {
+  if (interrupted !== undefined) process.exitCode = interruptExitCode();
+});
+
+function throwIfInterrupted() {
+  if (interrupted !== undefined) {
+    throw new CheckFailure(`interrupted by ${interrupted}`);
+  }
+}
+
+// An argv array with no shell, so nothing a caller passes is ever interpreted by a shell. Resolves
+// to { status, signal, error, stdout, stderr } like spawnSync (stdout and stderr are strings when
+// piped, else null), and rejects with CheckFailure when the run was interrupted. A child killed by
+// a signal has status null and a signal, so it is never taken for a pass. `timeout` ends the child
+// with SIGTERM and sets error.code to ETIMEDOUT.
+export function spawnAsync(command, args, options = {}) {
+  throwIfInterrupted();
+  const { timeout, ...spawnOptions } = options;
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { shell: false, ...spawnOptions });
+    runningChildren.add(child);
+    let stdout = child.stdout === null ? null : "";
+    let stderr = child.stderr === null ? null : "";
+    child.stdout?.setEncoding("utf8").on("data", (chunk) => (stdout += chunk));
+    child.stderr?.setEncoding("utf8").on("data", (chunk) => (stderr += chunk));
+
+    let error;
+    let settled = false;
+    const timer =
+      timeout === undefined
+        ? undefined
+        : setTimeout(() => {
+            error = Object.assign(new Error(`spawn ${command} ETIMEDOUT`), {
+              code: "ETIMEDOUT",
+            });
+            child.kill("SIGTERM");
+          }, timeout);
+    const settle = (status, signal) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      runningChildren.delete(child);
+      if (interrupted === undefined) {
+        resolve({ status, signal, error, stdout, stderr });
+      } else {
+        reject(new CheckFailure(`interrupted by ${interrupted}`));
+      }
+    };
+    // "error" without a pid means the child never started (no "close" follows then).
+    child.once("error", (spawnError) => {
+      error ??= spawnError;
+      if (child.pid === undefined) settle(null, null);
+    });
+    child.once("close", settle);
+  });
+}
+
+async function spawnChecked(label, command, args, options) {
+  const result = await spawnAsync(command, args, {
     stdio: "inherit",
-    shell: false,
     timeout: RUN_TIMEOUT_MS,
     ...options,
   });
@@ -99,7 +182,7 @@ function findNpmCli() {
 }
 
 // npm is run as `node npm-cli.js ...` so that no shell is needed on any platform. The bare command
-// `npm` is `npm.cmd` on Windows: spawnSync("npm") fails with ENOENT there, and Node 20.12 and
+// `npm` is `npm.cmd` on Windows: spawning "npm" fails with ENOENT there, and Node 20.12 and
 // later refuse to spawn a .cmd file without a shell (EINVAL, CVE-2024-27980). A shell is what
 // shell: false exists to avoid, so it is not the way around that. If no npm-cli.js is found, the
 // bare `npm` on PATH is the fallback.
@@ -141,7 +224,7 @@ function isRegularFile(file) {
 }
 
 // Returns the tarball to install and a cleanup for whatever was created to produce it.
-export function resolveTarball(tarballArg) {
+export async function resolveTarball(tarballArg) {
   if (tarballArg !== undefined) {
     const tarball = path.resolve(tarballArg);
     if (!tarball.endsWith(".tgz") || !isRegularFile(tarball)) {
@@ -162,7 +245,7 @@ export function resolveTarball(tarballArg) {
   try {
     // The destination must already exist (npm does not create it). `npm pack --json` is not parsed:
     // prepack writes the tsdown output to stdout ahead of the JSON.
-    runNpm(["pack", "--pack-destination", dir], { cwd: repoRoot });
+    await runNpm(["pack", "--pack-destination", dir], { cwd: repoRoot });
     const found = readdirSync(dir).filter((name) => name.endsWith(".tgz"));
     if (found.length !== 1) {
       throw new CheckFailure(

@@ -1,8 +1,12 @@
-import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import { CheckFailure, repoRoot, resolveTarball } from "./lib/scratch.mjs";
+import {
+  CheckFailure,
+  repoRoot,
+  resolveTarball,
+  spawnAsync,
+} from "./lib/scratch.mjs";
 
 // Lints the packed tarball with publint and attw, the same way locally and in CI. Both tools are
 // devDependencies pinned by package-lock.json and run from node_modules by the bin path in their own
@@ -46,11 +50,10 @@ function binScript(packageDir, binName) {
   return path.join(packageDir, relative);
 }
 
-function runTool(label, script, args) {
+async function runTool(label, script, args) {
   console.log(`verify-package: running ${label} ${args.join(" ")}`);
-  const result = spawnSync(process.execPath, [script, ...args], {
+  const result = await spawnAsync(process.execPath, [script, ...args], {
     stdio: "inherit",
-    shell: false,
   });
   // A tool that could not start or was killed by a signal has no exit status: treat it as failed.
   return result.status ?? 1;
@@ -68,16 +71,20 @@ try {
     "attw"
   );
 
-  const { tarball, cleanup } = resolveTarball(values.tarball);
+  const { tarball, cleanup } = await resolveTarball(values.tarball);
   tarballCleanup = cleanup;
 
   // Both always run, so one failing tool never hides the other's report.
-  const publintStatus = runTool("publint", publint, [
+  const publintStatus = await runTool("publint", publint, [
     "run",
     tarball,
     "--strict",
   ]);
-  const attwStatus = runTool("attw", attw, [tarball, "--profile", "strict"]);
+  const attwStatus = await runTool("attw", attw, [
+    tarball,
+    "--profile",
+    "strict",
+  ]);
 
   if (publintStatus === 0 && attwStatus === 0) {
     console.log("verify-package: ok publint attw");
