@@ -17,15 +17,20 @@ $ npm run start:dev
 $ npm run start:prod
 ```
 
-## Run tests
+## Mail transport
+
+Set `MAIL_TRANSPORT=json` to use nodemailer's JSON transport, which builds the message without sending it. Any other value uses the SMTP settings from `.env`; see `.env.example`.
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+$ MAIL_TRANSPORT=json npm run start
 ```
+
+## Run against the local build
+
+`npm install` in this folder installs the published `@webtre/nestjs-mailer-react-adapter`. To try the adapter as it exists in this repository instead, run this from the repository root:
+
+```bash
+$ npm run verify:examples -- nestjs-example
+```
+
+It packs the adapter from the working tree, installs it into a scratch copy of this app, builds the app and sends the welcome mail through the JSON transport.
