@@ -63,15 +63,6 @@ Every user-visible change between 0.2.5 and 0.3.0, actions first. The [README](h
 
 10. **A throw from the mailer callback** on the success path surfaces as an unhandled rejection. The callback is not called a second time.
 
-11. **Deep imports of `dist/index.js` or `dist/index.d.ts` break.** The files are now `index.cjs`, `index.mjs`, `index.d.cts` and `index.d.mts` behind an `exports` map (`./package.json` is also exported). Import the package name.
-
-    ```ts
-    // 0.2.x
-    import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter/dist/index.js";
-    // 0.3.0
-    import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
-    ```
-
 ## Behaviour changes, no action needed
 
 - `@react-email/render` is `^2.3.0` (was exactly 1.0.2) and `locter` is removed; the adapter has its own loader (`require` first, `import()` fallback). Rendering output does not change.
