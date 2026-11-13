@@ -17,18 +17,19 @@ on:
         type: boolean
         default: false
 
+# The build job runs the project's code (dependency install scripts, lint, tests) and gets read access
+# only. The release job gets the write and OIDC permissions but runs no project script: it only
+# publishes the tarball the build job packed.
 permissions:
-  contents: write
-  id-token: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Release
+  build:
+    name: Build and verify
     # Runs for a merged release* PR into main from this repository, or a manual dispatch.
     if: >-
       github.event_name == 'workflow_dispatch' ||
@@ -37,8 +38,17 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'main')
     runs-on: ubuntu-latest
-    environment: Release
     timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      package: ${{ steps.release.outputs.package }}
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      dist_tag: ${{ steps.release.outputs.dist_tag }}
+      tag_exists: ${{ steps.release.outputs.tag_exists }}
+      sha: ${{ steps.release.outputs.sha }}
+      tarball: ${{ steps.pack.outputs.tarball }}
     steps:
       - name: Require main for a real release
         if: github.event_name == 'workflow_dispatch' && !inputs.dry_run && github.ref != 'refs/heads/main'
@@ -53,29 +63,10 @@ jobs:
           # The commit the merge put on main; empty on a dispatch, which uses the dispatched ref.
           ref: ${{ github.event.pull_request.merge_commit_sha }}
 
-      # `registry-url` is intentionally omitted. When set, setup-node writes ~/.npmrc with
-      # `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}`. Under trusted publishing there is no
-      # NPM_TOKEN, so that substitutes an empty token and npm answers 404 instead of starting the OIDC
-      # exchange. Without it, npm uses its default registry and handles the exchange itself.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
-
-      - name: Install the pinned npm
-        # Trusted publishing needs npm 11.5.1 or later; the npm bundled with Node 22.23.4 is 10.9.9.
-        run: |
-          set -euo pipefail
-          npm install -g npm@11.21.2
-          npm --version
-          help=$(npm stage --help 2>&1 || true)
-          case "$help" in
-            *"npm stage publish"*) ;;
-            *)
-              echo "::error::This npm has no npm stage publish"
-              exit 1
-              ;;
-          esac
 
       - run: npm ci
       - run: npm run lint
@@ -85,7 +76,24 @@ jobs:
       - run: npm run verify:build
       - run: npm run verify:types
       - run: npm test
-      - run: npm run verify:package
+
+      - name: Pack the tarball
+        id: pack
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pack"
+          npm pack --pack-destination "$RUNNER_TEMP/pack"
+          set -- "$RUNNER_TEMP"/pack/*.tgz
+          if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
+            echo "::error::Expected exactly one tarball in $RUNNER_TEMP/pack"
+            exit 1
+          fi
+          echo "tarball=$(basename "$1")" >> "$GITHUB_OUTPUT"
+
+      - name: Lint the tarball
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: node scripts/verify-package.mjs --tarball "$RUNNER_TEMP/pack/$TARBALL"
 
       - name: Version, dist-tag and existing release
         id: release
@@ -130,17 +138,75 @@ jobs:
             echo "tag=$tag"
             echo "dist_tag=$dist_tag"
             echo "tag_exists=$tag_exists"
+            echo "sha=$(git rev-parse HEAD)"
           } >> "$GITHUB_OUTPUT"
 
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-tarball
+          path: ${{ runner.temp }}/pack/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Release
+    # Skipped whenever the build job is skipped or fails.
+    needs: build
+    runs-on: ubuntu-latest
+    environment: Release
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: write
+    steps:
+      # The commit the build job built, not the ref's current tip, so the release target cannot drift.
+      # This job runs no project script: nothing here installs dependencies or calls npm run.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.build.outputs.sha }}
+
+      # `registry-url` is intentionally omitted. When set, setup-node writes ~/.npmrc with
+      # `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}`. Under trusted publishing there is no
+      # NPM_TOKEN, so that substitutes an empty token and npm answers 404 instead of starting the OIDC
+      # exchange. Without it, npm uses its default registry and handles the exchange itself.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Install the pinned npm
+        # Trusted publishing needs npm 11.5.1 or later; the npm bundled with Node 22.23.4 is 10.9.9.
+        run: |
+          set -euo pipefail
+          npm install -g npm@11.21.2
+          npm --version
+          help=$(npm stage --help 2>&1 || true)
+          case "$help" in
+            *"npm stage publish"*) ;;
+            *)
+              echo "::error::This npm has no npm stage publish"
+              exit 1
+              ;;
+          esac
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-tarball
+          path: ${{ runner.temp }}/tarball
+
+      # Publishing a tarball path runs no lifecycle script.
       - name: Publish dry run
         if: inputs.dry_run
         env:
-          DIST_TAG: ${{ steps.release.outputs.dist_tag }}
-        run: npm publish --dry-run --access public --tag "$DIST_TAG"
+          DIST_TAG: ${{ needs.build.outputs.dist_tag }}
+          TARBALL: ${{ needs.build.outputs.tarball }}
+        run: npm publish --dry-run --access public --tag "$DIST_TAG" "$RUNNER_TEMP/tarball/$TARBALL"
 
       # Written before staging so a bad pr_number fails before anything is staged.
       - name: Write the release notes
-        if: ${{ !inputs.dry_run && steps.release.outputs.tag_exists == 'false' }}
+        if: ${{ !inputs.dry_run && needs.build.outputs.tag_exists == 'false' }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_BODY: ${{ github.event.pull_request.body }}
@@ -154,36 +220,42 @@ jobs:
           fi
 
       # Staging comes before tagging so a failed stage leaves nothing to clean up.
+      # A staged version reserves its version number (`npm help stage`), so a re-run after "staged, but
+      # the tag or release failed" fails here instead of staging twice. To recover, create the tag and
+      # the release by hand (`gh release create v<version> --target <sha>`); a re-run then takes the
+      # tag-exists skip. If the stage itself is unwanted, run `npm stage reject` on it.
       - name: Stage the release on npm
-        if: ${{ !inputs.dry_run && steps.release.outputs.tag_exists == 'false' }}
+        if: ${{ !inputs.dry_run && needs.build.outputs.tag_exists == 'false' }}
         env:
           NPM_CONFIG_PROVENANCE: true
-          DIST_TAG: ${{ steps.release.outputs.dist_tag }}
-        run: npm stage publish --access public --tag "$DIST_TAG"
+          DIST_TAG: ${{ needs.build.outputs.dist_tag }}
+          TARBALL: ${{ needs.build.outputs.tarball }}
+        run: npm stage publish --access public --tag "$DIST_TAG" "$RUNNER_TEMP/tarball/$TARBALL"
 
       # gh release create makes the tag server-side, so checkout keeps persist-credentials: false.
       - name: Create the tag and the GitHub release
-        if: ${{ !inputs.dry_run && steps.release.outputs.tag_exists == 'false' }}
+        if: ${{ !inputs.dry_run && needs.build.outputs.tag_exists == 'false' }}
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.release.outputs.tag }}
+          TAG: ${{ needs.build.outputs.tag }}
+          SHA: ${{ needs.build.outputs.sha }}
         run: |
           set -euo pipefail
           if [ -s "$RUNNER_TEMP/notes.md" ]; then
-            gh release create "$TAG" --target "$(git rev-parse HEAD)" --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
+            gh release create "$TAG" --target "$SHA" --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
           else
-            gh release create "$TAG" --target "$(git rev-parse HEAD)" --title "$TAG" --generate-notes
+            gh release create "$TAG" --target "$SHA" --title "$TAG" --generate-notes
           fi
 
       - name: Comment on the pull request
-        if: ${{ !inputs.dry_run && steps.release.outputs.tag_exists == 'false' && (inputs.pr_number != '' || github.event_name == 'pull_request') }}
+        if: ${{ !inputs.dry_run && needs.build.outputs.tag_exists == 'false' && (inputs.pr_number != '' || github.event_name == 'pull_request') }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
-          PACKAGE: ${{ steps.release.outputs.package }}
-          VERSION: ${{ steps.release.outputs.version }}
-          TAG: ${{ steps.release.outputs.tag }}
-          DIST_TAG: ${{ steps.release.outputs.dist_tag }}
+          PACKAGE: ${{ needs.build.outputs.package }}
+          VERSION: ${{ needs.build.outputs.version }}
+          TAG: ${{ needs.build.outputs.tag }}
+          DIST_TAG: ${{ needs.build.outputs.dist_tag }}
         run: |
           set -euo pipefail
           # The backticks below are Markdown, not command substitution.
