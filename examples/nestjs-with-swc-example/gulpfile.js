@@ -11,7 +11,7 @@ const paths = {
 
 exports.default = function (cb) {
   pipeline(
-    gulp.src(paths.src, { sourcemaps: true }),
+    gulp.src(paths.src),
     ts({ noImplicitAny: true, jsx: 'react-jsx' }),
     gulp.dest(paths.dest),
     cb,
