@@ -751,6 +751,39 @@ describe("unsafeAllowOutsideTemplateDir", () => {
       );
     }
   );
+
+  // classifyTemplateName lets a drive-relative name through on Windows (the table in template-confine.test.ts
+  // gives "C:x" as ok), so the real-location check is the only defence for it. `drive` is the drive of the root,
+  // which makes "<drive>..\out\secret" reach the real out/secret.js; the literal C: form and a drive other
+  // than the root's are refused the same way. The device forms never reach the filesystem.
+  test.runIf(process.platform === "win32")(
+    "drive-relative names are judged by where they land and device names are refused (Windows only)",
+    async () => {
+      const drive = path.parse(at("root")).root.slice(0, 2);
+      const otherDrive = drive.toUpperCase() === "Z:" ? "Y:" : "Z:";
+      const escapes = new Set([
+        `${drive}..\\out\\secret`,
+        "C:..\\out\\secret",
+        `${otherDrive}secret`,
+      ]);
+      for (const name of escapes) {
+        expectAdapterError(
+          await compileTemplate(name, options(at("root"))),
+          OUTSIDE
+        );
+      }
+      expectRendered(
+        await compileTemplate(`${drive}ok`, options(at("root"))),
+        "M-root-ok"
+      );
+      for (const name of ["\\\\.\\C:\\x", "//./x", "//?/x"]) {
+        expectAdapterError(
+          await compileTemplate(name, options(at("root"))),
+          INVALID_NAME
+        );
+      }
+    }
+  );
 });
 
 describe("template roots are read only from own properties", () => {
