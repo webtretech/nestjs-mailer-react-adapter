@@ -47,14 +47,14 @@ export function classifyMail(mail: unknown): MailClassification {
     throw invalidMail(`mail.data must be an object; got ${describeType(data)}`);
   }
 
-  // The caller supplied the body: never overwrite it (D-24, D-31).
+  // The caller supplied the body: never overwrite it.
   if (data["html"] || data["raw"]) {
     return { kind: "pass-through" };
   }
 
   const { template } = data;
   if (template === undefined || template === null || template === "") {
-    // A caller-provided text, even an empty one, counts as a body (D-25).
+    // A caller-provided text, even an empty one, counts as a body.
     if (data["text"] !== undefined) {
       return { kind: "pass-through" };
     }

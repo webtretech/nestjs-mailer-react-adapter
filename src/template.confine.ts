@@ -29,7 +29,7 @@ export interface RealLocation {
   readonly failure: { readonly cause: unknown } | undefined;
 }
 
-// The real location of a file that may not exist (D-17): the realpath of its deepest resolvable
+// The real location of a file that may not exist: the realpath of its deepest resolvable
 // ancestor plus the remaining tail of base names. `file` is absolute and normalized (candidateFiles
 // and path.resolve guarantee it), so the tail never holds `..`. An error other than ENOENT or ENOTDIR
 // (ELOOP, ENAMETOOLONG, EACCES) is returned as `failure`; the location is still the best one known.

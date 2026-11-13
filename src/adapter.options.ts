@@ -77,7 +77,7 @@ export function resolveSettings(
     ...renderOptions
   } = source;
 
-  // The key being present is enough, whether it holds true or false (D-26).
+  // The key being present is enough, whether it holds true or false.
   if (plainText !== undefined) {
     warnPlainTextDeprecated();
   }

@@ -49,7 +49,7 @@ export class ReactAdapter implements TemplateAdapter {
       );
     }
     const Comp = value;
-    // One render without pretty: the text part is built from this raw HTML (D-32).
+    // One render without pretty: the text part is built from this raw HTML.
     let raw: string;
     try {
       raw = await render(<Comp {...context} />, settings.renderOptions);

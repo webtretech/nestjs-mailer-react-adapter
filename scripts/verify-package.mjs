@@ -11,7 +11,7 @@ import { CheckFailure, repoRoot, resolveTarball } from "./lib/scratch.mjs";
 //
 // publint runs with --strict, so warnings fail like errors. attw runs with its strict profile
 // (node10, node16 from CJS, node16 from ESM and bundler). Neither run passes a rule-ignore option:
-// the explicit-ignore clause of the phase decision D-11 is unused because no known false positive
+// no rule is ignored because no known false positive
 // exists. publint's two current suggestions ("type" and "sideEffects") do not fail --strict and are
 // left alone on purpose, since adopting them would change the published package metadata.
 

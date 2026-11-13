@@ -160,7 +160,7 @@ for (const entry of entries) {
     }
   }
 
-  // Invalid names and rootless absolute names are refused through the callback from this entry too (D-06, D-20).
+  // Invalid names and rootless absolute names are refused through the callback from this entry too.
   {
     const where = `${entry.label} confinement`;
     const { ReactAdapterError } = entry.module;
@@ -247,7 +247,7 @@ for (const entry of entries) {
     }
   }
 
-  // Templates are confined to their roots from this entry too (D-01, D-03, D-04): an escaping name is refused
+  // Templates are confined to their roots from this entry too: an escaping name is refused
   // whether or not the target exists, the message never repeats the root, and the opt-out switches only the
   // root check off.
   {
@@ -329,7 +329,7 @@ for (const entry of entries) {
     );
   }
 
-  // D-22: a native ESM template that fails to load stays failed; the adapter adds no retry.
+  // A native ESM template that fails to load stays failed; the adapter adds no retry.
   // Node caches a failed ESM evaluation per file URL, and both entries run in this one process, so each
   // entry gets its own copy in a fresh directory and therefore its own fresh failure.
   {

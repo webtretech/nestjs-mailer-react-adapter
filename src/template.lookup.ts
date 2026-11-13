@@ -152,14 +152,14 @@ export async function locateTemplate(
   const roots = [
     ...new Set(directories.map((directory) => path.resolve(directory))),
   ];
-  // D-17: one rule. Every root and every candidate is judged by its real location, so spelling,
+  // One rule: every root and every candidate is judged by its real location, so spelling,
   // aliases and letter case decide nothing beyond what the filesystem says.
   const realRoots = confinement.allowOutside
     ? []
     : await Promise.all(
         roots.map(async (root) => (await resolveRealLocation(root)).location)
       );
-  // D-24: an outside candidate is skipped (never stat'ed) and remembered; the lookup goes on.
+  // An outside candidate is skipped (never stat'ed) and remembered; the lookup goes on.
   let firstOutside: string | undefined;
   for (const candidate of candidates) {
     const { location, failure } = await resolveRealLocation(candidate);
@@ -174,7 +174,7 @@ export async function locateTemplate(
       throw loadFailed(template, candidate, failure.cause);
     }
     if (await isFile(location, candidate, template)) {
-      // D-22: the file that was verified is the file that is loaded.
+      // The file that was verified is the file that is loaded.
       return location;
     }
   }

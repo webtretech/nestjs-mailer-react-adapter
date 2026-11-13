@@ -79,7 +79,7 @@ async function importOrRequire(absolute: string): Promise<LoadedTemplate> {
 }
 
 // Nothing is cached here: Node does not cache a CommonJS module that threw while loading, so the next send retries it.
-// A native ESM module that failed to evaluate stays failed until the process restarts (D-22); no retry is added.
+// A native ESM module that failed to evaluate stays failed until the process restarts; no retry is added.
 export async function loadTemplate(
   file: string,
   template: string
@@ -89,7 +89,7 @@ export async function loadTemplate(
   try {
     return await importOrRequire(absolute);
   } catch (error) {
-    // D-21: a cause with a string code shows only the code (Node's own messages embed absolute paths and
+    // A cause with a string code shows only the code (Node's own messages embed absolute paths and
     // require stacks); any other cause is quoted. The whole cause stays on error.cause.
     // Exception to the no-path rule: text thrown by the template or its dependencies is quoted as given and
     // may carry an absolute path (for example `new Error("bad config in " + __dirname)`); coded Node errors never do.
