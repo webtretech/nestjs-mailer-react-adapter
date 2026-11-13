@@ -20,6 +20,7 @@ import type { Outcome } from "./helpers";
 
 const OUTSIDE = "ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT";
 const NOT_FOUND = "ERR_REACT_ADAPTER_TEMPLATE_NOT_FOUND";
+const LOAD_FAILED = "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED";
 
 // `base` is deliberately NOT realpath'd: on macOS os.tmpdir() sits under the /var -> /private/var
 // alias, so local runs exercise an aliased spelling of every path below. `realBase` is its real path.
@@ -103,6 +104,11 @@ module.exports = function Template(props) { return "M-counted:" + props.body; };
   await link(at("out", "secret.js"), at("root", "w2.cjs"), "file");
   await link(at("root", "loop-b.js"), at("root", "loop-a.js"), "file");
   await link(at("root", "loop-a.js"), at("root", "loop-b.js"), "file");
+  // Directory loops: one inside the root, one inside the outside folder that `link-out` points at.
+  await link(at("root", "loopdir-b"), at("root", "loopdir"), "dir");
+  await link(at("root", "loopdir"), at("root", "loopdir-b"), "dir");
+  await link(at("out", "outloop-b"), at("out", "outloop"), "dir");
+  await link(at("out", "outloop"), at("out", "outloop-b"), "dir");
 
   await fs.writeFile(at("case-probe.tmp"), "");
   caseInsensitive = await fs.stat(at("CASE-PROBE.TMP")).then(
@@ -425,6 +431,27 @@ describe("template confinement by real location", () => {
     const looped = await resolveRealLocation(at("root", "loop-a.js"));
     expect(looped.location).toBe(real("root", "loop-a.js"));
     expect(looped.failure?.cause).toMatchObject({ code: "ELOOP" });
+  });
+
+  test("a realpath failure below an inside directory is LOAD_FAILED, and below an outside one it is OUTSIDE_ROOT", async ({
+    skip,
+  }) => {
+    needLinks(skip);
+    // The containment check runs before the failure check, so the same ELOOP is reported differently
+    // depending on where the best-known location lies.
+    const inside = expectAdapterError(
+      await compileTemplate("loopdir/x", options(at("root"))),
+      LOAD_FAILED
+    );
+    expect(inside.path?.startsWith(at("root", "loopdir", "x"))).toBe(true);
+    expect(inside.cause).toMatchObject({ code: "ELOOP" });
+    const outside = expectAdapterError(
+      await compileTemplate("link-out/outloop/x", options(at("root"))),
+      OUTSIDE
+    );
+    expect(
+      outside.path?.startsWith(at("root", "link-out", "outloop", "x"))
+    ).toBe(true);
   });
 
   test("the verified real path is the loaded path: error.path is the real path on INVALID_EXPORT and RENDER_FAILED", async ({
