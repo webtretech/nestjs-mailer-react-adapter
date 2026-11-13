@@ -215,6 +215,26 @@ export function makeScratch(prefix) {
   return realpathSync.native(mkdtempSync(path.join(os.tmpdir(), prefix)));
 }
 
+// Removes a directory the script created. It never throws, so each removal in a `finally` runs even
+// when an earlier one failed, and a cleanup problem cannot turn a passing run into a failure or hide
+// the error of a failing one (on Windows a scanner or a busy file makes the removal fail with EBUSY,
+// EPERM or ENOTEMPTY, which `force` does not cover). The retries ride out a brief lock; a removal
+// that still fails is reported on stderr as a warning that names the directory.
+export function removeDirectory(dir) {
+  try {
+    rmSync(dir, {
+      recursive: true,
+      force: true,
+      maxRetries: 3,
+      retryDelay: 100,
+    });
+  } catch (error) {
+    console.error(
+      `warning: could not remove ${dir}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
 function isRegularFile(file) {
   try {
     return statSync(file).isFile();
@@ -241,7 +261,7 @@ export async function resolveTarball(tarballArg) {
     );
   }
   const dir = makeScratch("react-adapter-pack-");
-  const cleanup = () => rmSync(dir, { recursive: true, force: true });
+  const cleanup = () => removeDirectory(dir);
   try {
     // The destination must already exist (npm does not create it). `npm pack --json` is not parsed:
     // prepack writes the tsdown output to stdout ahead of the JSON.

@@ -4,7 +4,6 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
-  rmSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -15,6 +14,7 @@ import {
   INSTALL_FLAGS,
   installedVersion,
   makeScratch,
+  removeDirectory,
   repoRoot,
   resolveTarball,
   RUN_TIMEOUT_MS,
@@ -215,7 +215,7 @@ try {
     if (keep) {
       console.log(`examples: kept ${scratch}`);
     } else {
-      rmSync(scratch, { recursive: true, force: true });
+      removeDirectory(scratch);
     }
   }
   tarballCleanup();

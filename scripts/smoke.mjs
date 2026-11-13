@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import {
@@ -6,6 +6,7 @@ import {
   INSTALL_FLAGS,
   installedVersion,
   makeScratch,
+  removeDirectory,
   repoRoot,
   resolveTarball,
   run,
@@ -394,7 +395,7 @@ try {
   process.exitCode = 1;
 } finally {
   if (scratch !== undefined) {
-    rmSync(scratch, { recursive: true, force: true });
+    removeDirectory(scratch);
   }
   tarballCleanup();
 }
