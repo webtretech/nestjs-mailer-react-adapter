@@ -20,8 +20,11 @@ const AREAS = [
 
 const MIN_CONFINEMENT_ROWS = 15;
 const SELF = "test/compile-paths.test.ts";
-// Documentation checks: they exercise no compile() path, so no row cites them.
-const NOT_COMPILE_TESTS = new Set(["test/docs.test.ts"]);
+// Documentation checks and tests of the test helpers: they exercise no compile() path, so no row cites them.
+const NOT_COMPILE_TESTS = new Set([
+  "test/docs.test.ts",
+  "test/helpers.test.ts",
+]);
 const SCRIPT_OWNER = "scripts/verify-build.mjs";
 const HEADER = "| Area | compile() path | File | Test |";
 const PLACEHOLDER = /\bno test yet\b|\bTODO\b|^none$/i;
