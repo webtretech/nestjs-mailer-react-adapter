@@ -146,15 +146,90 @@ Pass options to the `ReactAdapter` constructor.
 
 Any other key is passed unchanged to `@react-email/render`'s `render()`.
 
+## Text part
+
+Whether a text part exists without `text: true` depends on the mailer major; the contract tests in this repository pin each cell below.
+
+| Mailer | `text` off (default) | `text: true` |
+| --- | --- | --- |
+| v2 (2.0.1+) | No text part | Adapter text part |
+| v3 | No text part | Adapter text part |
+| v4 | `sendMail`: the mailer's `textFromHtml` text. `render()`: no `text` | Adapter text part on `sendMail` and `render()` |
+
+- A caller-supplied `text` is never replaced.
+- Mail without a template passes through unchanged. v4 still derives a text part from `html`; v2 and v3 add none.
+- The adapter's text uses the html-to-text defaults, which upper-cases headings. On v4 it therefore differs from the mailer's `textFromHtml` text, which keeps the original case.
+
+## Errors
+
+Failures reach the mailer callback as a `ReactAdapterError` with `code`, `template`, `path`, `searched`, `roots` and `cause`. On mailer v4 the send rejects with `MailerTemplateError`, whose `cause` is the `ReactAdapterError`; v2 and v3 reject with the adapter error itself. Messages carry no absolute paths, so read the `path`, `searched` and `roots` fields instead.
+
+| Code | When |
+| --- | --- |
+| `ERR_REACT_ADAPTER_TEMPLATE_DIR_MISSING` | Relative template name and no `template.dir` or `template.dirs` |
+| `ERR_REACT_ADAPTER_TEMPLATE_NOT_FOUND` | No candidate file exists (see `searched` and `roots`) |
+| `ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED` | The file exists but cannot be loaded or inspected (see `cause`) |
+| `ERR_REACT_ADAPTER_INVALID_EXPORT` | The default export is not a component |
+| `ERR_REACT_ADAPTER_RENDER_FAILED` | The component threw, or `pretty` failed |
+| `ERR_REACT_ADAPTER_TEXT_FAILED` | Text conversion failed |
+| `ERR_REACT_ADAPTER_NO_BODY` | No template, and no `html`, `text` or `raw` |
+| `ERR_REACT_ADAPTER_INVALID_MAIL` | `mail`, `mail.data`, `template` or `context` has the wrong type, or `mail.data` is not writable |
+| `ERR_REACT_ADAPTER_INVALID_TEMPLATE_NAME` | Name refused on sight (NUL byte, URL scheme, device form; drive-letter and UNC names off Windows) |
+| `ERR_REACT_ADAPTER_TEMPLATE_OUTSIDE_ROOT` | Real location outside the roots, or an absolute name with no roots |
+
+`REACT_ADAPTER_ERROR_CODES` is exported for comparisons.
+
+## Validating templates in CI
+
+Load and render every compiled template before you deploy. Run this after your build.
+
+```js
+// check-templates.mjs (run after your build: node check-templates.mjs)
+import assert from "node:assert/strict";
+import { readdirSync } from "node:fs";
+import path from "node:path";
+import { ReactAdapter } from "@webtre/nestjs-mailer-react-adapter";
+
+const dir = path.resolve("dist/templates"); // the directory you pass as template.dir
+const samples = { welcome: { name: "Ada", code: "123456" } }; // sample props by template name
+
+const adapter = new ReactAdapter();
+const render = (template) =>
+  new Promise((resolve, reject) => {
+    const mail = { data: { template, context: samples[template] ?? {} } };
+    adapter.compile(mail, (error) => (error ? reject(error) : resolve(mail.data.html)), {
+      template: { dir },
+    });
+  });
+
+const names = readdirSync(dir, { recursive: true })
+  .filter((file) => /\.(js|cjs|mjs)$/.test(file))
+  .map((file) => file.replace(/\.(js|cjs|mjs)$/, "").split(path.sep).join("/"));
+
+assert.ok(names.length > 0, `no compiled templates in ${dir}`);
+for (const name of new Set(names)) {
+  assert.ok((await render(name)).length > 0, `${name} rendered empty HTML`);
+  console.log(`ok ${name}`);
+}
+```
+
+A template missing from `samples` renders with an empty object, so a component that needs props fails; that is the signal to add a sample. The script needs Node 20.19+ and ESM. Nothing in it is tied to a test runner, so you can also wrap it in your runner's own test function.
+
 ## Security
 
 - React escapes text and attribute values from `context`. It does not escape text inside `<style>` or `<script>`, and it does not sanitise `dangerouslySetInnerHTML`, `srcDoc` or `style`. Keep user input out of all of these.
 - Validate or allow-list URLs that come from user input (`href`, `src`, `action`, `formAction`). React 19 replaces `javascript:` URLs, but React 18 is also supported, so do not rely on it. Other schemes such as `data:` pass through.
 - Templates are code. They load only from inside `template.dir` and `template.dirs` (symlinks resolved) unless you construct `new ReactAdapter({ unsafeAllowOutsideTemplateDir: true })`. This stops template names from escaping, not someone who can write to the template directory.
+- Some names are refused on sight, and the opt-out leaves them refused: a NUL byte, a URL scheme (anything shaped `scheme:`, so `release-2026:q1` counts), and Windows device or verbatim names, on every OS. On Linux and macOS, drive-letter and UNC names are refused too. On Windows they are confined like any absolute name, and a UNC name loads only from the server and share of a configured UNC root.
+- `unsafeAllowOutsideTemplateDir` lets templates load from outside the configured roots. Templates are code, so use it only for names you control.
 
 ## Examples
 
-You could also check the [examples folder](./examples) in this repo for a working usage example and how to set it up with [SWC](https://docs.nestjs.com/recipes/swc) using [gulp](https://gulpjs.com/).
+Two working apps, one built with tsc and one with SWC, live in the [examples folder](https://github.com/webtretech/nestjs-mailer-react-adapter/tree/main/examples). CI builds them against the packed package.
+
+## Upgrading from 0.2
+
+See the [migration notes](https://github.com/webtretech/nestjs-mailer-react-adapter/blob/main/docs/MIGRATION.md).
 
 ## Credits
 
@@ -163,4 +238,4 @@ You could also check the [examples folder](./examples) in this repo for a workin
 
 ## License
 
-[MIT](./LICENSE) License © 2022 [Webtre Technologies](https://github.com/webtretech)
+[MIT](https://github.com/webtretech/nestjs-mailer-react-adapter/blob/main/LICENSE) License © 2022 [Webtre Technologies](https://github.com/webtretech)

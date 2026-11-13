@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, test } from "vitest";
 
+import { REACT_ADAPTER_ERROR_CODES } from "../src";
 import type { ReactAdapterOptions } from "../src";
 
 // Ties README.md to the source and to package.json, so a documented fact cannot drift silently.
@@ -117,5 +118,82 @@ describe("README", () => {
     }
     expect(readme).toContain("react-jsx");
     expect(section(readme, "Setup")).toContain("`.js`, `.cjs` and `.mjs`");
+  });
+
+  test("documents text-part behaviour per mailer major as pinned by the contract", () => {
+    const text = section(readme, "Text part");
+    const row = (prefix: string) =>
+      text.split("\n").find((line) => line.startsWith(prefix)) ?? "";
+    for (const major of ["| v2", "| v3"]) {
+      expect(row(major), major).toContain("No text part");
+      expect(row(major), major).toContain("Adapter text part");
+    }
+    const v4 = row("| v4");
+    expect(v4).toContain("textFromHtml");
+    expect(v4).toContain("render()");
+    expect(v4).toContain("Adapter text part");
+    expect(text).toContain("never replaced");
+    expect(text).toContain("passes through unchanged");
+    expect(text).toContain("upper-cases headings");
+
+    // The table restates these assertions; if the contract changes, this fails until the README does.
+    const contract = read("../scripts/contract/contract.test.mjs");
+    for (const assertion of [
+      "assert.match(message.text, /^Hello Ann/)",
+      'assert.equal("text" in message, false)',
+      "assert.equal(rendered.text, undefined)",
+      "assert.match(message.text, /^HELLO ANN/)",
+      "assert.match(rendered.text, /^HELLO ANN/)",
+    ]) {
+      expect(contract, assertion).toContain(assertion);
+    }
+  });
+
+  test("lists exactly the exported error codes and fields", () => {
+    const errors = section(readme, "Errors");
+    const documented = new Set(errors.match(/ERR_REACT_ADAPTER_[A-Z_]+/g));
+    expect(documented).toEqual(
+      new Set(Object.values(REACT_ADAPTER_ERROR_CODES))
+    );
+    for (const field of ["path", "searched", "roots"]) {
+      expect(errors).toContain(`\`${field}\``);
+    }
+    expect(errors).toContain("MailerTemplateError");
+  });
+
+  test("gives a runner-agnostic CI recipe", () => {
+    const recipes = fences(readme).filter(
+      ({ lang, body }) =>
+        lang === "js" && body.startsWith("// check-templates.mjs")
+    );
+    expect(recipes).toHaveLength(1);
+    const body = recipes[0]?.body ?? "";
+    expect(body).toContain("new Set(");
+    expect(body).toContain("no compiled templates in");
+    // A bare runner call; RegExp.prototype.test, as in `/x/.test(file)`, is a method call and allowed.
+    expect(body).not.toMatch(/(?<![.\w])(describe|it|test|expect)\(/);
+    expect(body).not.toMatch(/jest|vitest/i);
+  });
+
+  test("lists the refused template names in Security", () => {
+    const security = section(readme, "Security");
+    for (const word of [
+      "NUL",
+      "URL scheme",
+      "drive-letter",
+      "UNC",
+      "Windows",
+      "unsafeAllowOutsideTemplateDir",
+    ]) {
+      expect(security, word).toContain(word);
+    }
+  });
+
+  test("uses absolute links only", () => {
+    expect(readme).not.toMatch(/\]\((?!https?:\/\/|#)/);
+    expect(readme).toContain(
+      "https://github.com/webtretech/nestjs-mailer-react-adapter/blob/main/docs/MIGRATION.md"
+    );
+    expect(readme).not.toMatch(/provenance/i);
   });
 });
