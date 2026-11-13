@@ -491,7 +491,7 @@ describe("template confinement by real location", () => {
 });
 
 // A JavaScript caller can hand compile() undefined mailer options; the type forbids it, so this one
-// constant models that caller. It is the only double assertion in this phase.
+// constant models that caller. It is the only double assertion in this file.
 const NO_MAILER_OPTIONS = undefined as unknown as MailerOptions;
 
 const OPTED_OUT = (): ReactAdapter =>

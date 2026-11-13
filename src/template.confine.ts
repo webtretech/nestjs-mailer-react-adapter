@@ -70,8 +70,8 @@ export async function resolveRealLocation(file: string): Promise<RealLocation> {
   }
 }
 
-// Containment between two real locations: path.relative, never a string-prefix test (research
-// Pattern 1). `..hidden.js` is a legal name, hence `".." + sep` rather than startsWith("..").
+// Containment between two real locations: path.relative, never a string-prefix test.
+// `..hidden.js` is a legal name, hence `".." + sep` rather than startsWith("..").
 export function isInsideRoot(
   root: string,
   candidate: string,

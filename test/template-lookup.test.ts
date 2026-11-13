@@ -622,7 +622,7 @@ describe("names, codes and failures", () => {
     expect(outcome.calls).toBe(1);
   });
 
-  // Phase 1 IN-08, second half, considered: the two-handler tail is kept, so the adapter error is not re-delivered.
+  // A throw from the callback on the failure path surfaces once as an unhandled rejection; the adapter error is not delivered to the callback a second time.
   test("a callback that throws on the not-found path is called once and its throw becomes an unhandled rejection", async () => {
     const thrown = new Error("callback failed on the failure path");
     const mail = {
