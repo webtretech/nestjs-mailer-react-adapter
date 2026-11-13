@@ -303,6 +303,32 @@ describe("template-loader: a SyntaxError that names a path", () => {
     expect(error.cause).toBeInstanceOf(SyntaxError);
   });
 
+  test("a SyntaxError from another realm that names a path shows only its name and stays on cause", async () => {
+    // A vm context stands in for a Jest sandbox: the value is not an instanceof this realm's Error.
+    await write(
+      "throws-syntax-path-other-realm.js",
+      `throw require("node:vm").runInNewContext(\`new SyntaxError("bad syntax in " + \${JSON.stringify(__filename)})\`);\n`
+    );
+    const outcome = await send("throws-syntax-path-other-realm");
+    const error = expectAdapterError(
+      outcome,
+      "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED"
+    );
+    expect(error.message).toContain("a SyntaxError");
+    expect(error.message).toContain("the underlying error is in cause");
+    expect(error.message).not.toContain("bad syntax in");
+    expect(error.message).not.toContain(dir);
+    expect(error.message).not.toMatch(ABSOLUTE_PATH);
+    expect(error.cause).not.toBeInstanceOf(Error);
+    expect(error.cause).toMatchObject({ name: "SyntaxError" });
+    if (typeof error.cause === "object" && error.cause !== null) {
+      expect(String(Reflect.get(error.cause, "message"))).toContain(
+        "bad syntax in"
+      );
+    }
+    expect(outcome.html).toBeUndefined();
+  });
+
   test("a SyntaxError without a path in its text is still quoted", async () => {
     await write(
       "throws-syntax-plain.js",

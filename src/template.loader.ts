@@ -80,11 +80,13 @@ async function importOrRequire(absolute: string): Promise<LoadedTemplate> {
 const ABSOLUTE_PATH_IN_TEXT =
   /(?:^|[\s"'(=])(?:[A-Za-z]:[\\/]|\\\\|\/(?=[^\s"'/]))|file:\/\//;
 
+// Duck-typed on purpose: an error from another realm (a vm context, a Jest sandbox) is not an instanceof Error.
 function isSyntaxErrorNamingAPath(error: unknown): boolean {
   return (
-    error instanceof Error &&
-    error.name === "SyntaxError" &&
-    ABSOLUTE_PATH_IN_TEXT.test(error.message)
+    isRecord(error) &&
+    error["name"] === "SyntaxError" &&
+    typeof error["message"] === "string" &&
+    ABSOLUTE_PATH_IN_TEXT.test(error["message"])
   );
 }
 
