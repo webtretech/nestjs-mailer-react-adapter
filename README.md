@@ -34,7 +34,7 @@ npm i -D @types/react
 - Node `>=20.19`
 - `@nestjs-modules/mailer` `^2.0.1 || ^3.0.0 || ^4.0.0`
 - `react` and `react-dom` `^18.0.0 || ^19.0.0`
-- `nodemailer` follows the mailer major's own peer: `>=6.4.6` on v2, `>=8.0.5` on v3 and v4
+- `nodemailer` follows the installed mailer's own peer: `>=6.4.6` for 2.0.x to 2.3.4, `>=8.0.5` for 2.3.5 and later 2.x, v3 and v4
 
 ## Setup
 
