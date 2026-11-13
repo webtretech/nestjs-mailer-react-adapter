@@ -29,41 +29,6 @@ function mailerOptions(dir: string): MailerOptions {
   return { template: { dir } };
 }
 
-interface Outcome {
-  args: unknown[];
-  calls: number;
-  html: unknown;
-}
-
-// Resolves on the first callback, then waits so that a second callback would be counted.
-function run(
-  adapter: ReactAdapter,
-  template: string,
-  options: MailerOptions
-): Promise<Outcome> {
-  const mail = {
-    data: { template, context: { body: "Body" }, html: undefined as unknown },
-  };
-  return new Promise((resolve) => {
-    let calls = 0;
-    let first: unknown[] = [];
-    adapter.compile(
-      mail,
-      (...args: unknown[]) => {
-        calls += 1;
-        if (calls === 1) {
-          first = args;
-          setTimeout(
-            () => resolve({ args: first, calls, html: mail.data.html }),
-            50
-          );
-        }
-      },
-      options
-    );
-  });
-}
-
 async function expectRender(
   template: string,
   id: string,
@@ -71,7 +36,7 @@ async function expectRender(
   adapter: ReactAdapter = new ReactAdapter(),
   expected: string = html(id)
 ): Promise<void> {
-  const outcome = await run(adapter, template, options);
+  const outcome = await compileTemplate(template, options, adapter);
   expect(outcome.calls).toBe(1);
   expect(outcome.args).toEqual([]);
   expect(outcome.html).toBe(expected);
@@ -123,8 +88,7 @@ describe("ReactAdapter against the 0.2.5 loading and rendering behavior", () => 
   });
 
   test("missing template reports ERR_REACT_ADAPTER_TEMPLATE_NOT_FOUND once with every searched path (changed in 0.3.0)", async () => {
-    const outcome = await run(
-      new ReactAdapter(),
+    const outcome = await compileTemplate(
       "does-not-exist",
       mailerOptions(FIXTURES)
     );
