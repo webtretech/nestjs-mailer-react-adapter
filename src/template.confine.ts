@@ -10,6 +10,14 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+// Like isRecord, but arrays do not count. Used for mail and option objects, where an array is a caller mistake.
+// isRecord stays array-permitting on purpose: its callers inspect module records and error values.
+export function isPlainObjectLike(
+  value: unknown
+): value is Record<string, unknown> {
+  return isRecord(value) && !Array.isArray(value);
+}
+
 // Reads only an own property: a value inherited through a polluted prototype never counts.
 export function ownProperty(value: unknown, key: PropertyKey): unknown {
   return isRecord(value) && Object.hasOwn(value, key)

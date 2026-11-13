@@ -1,3 +1,5 @@
+import { isPlainObjectLike } from "./template.confine";
+
 /**
  * Options for the html-to-text converter that builds the text part. Typed loosely on
  * purpose: render's own option type would leak an untyped value into this package's public API.
@@ -39,14 +41,6 @@ export interface ResolvedSettings {
   renderOptions: RenderPassThrough;
 }
 
-function isOptionsObject(value: unknown): value is ReactAdapterOptions {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isConfigObject(value: unknown): value is HtmlToTextConfig {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 let plainTextWarned = false;
 
 // Once per process. Node applies --no-deprecation and --throw-deprecation itself; under
@@ -66,7 +60,7 @@ function warnPlainTextDeprecated(): void {
 export function resolveSettings(
   options: ReactAdapterOptions | undefined
 ): ResolvedSettings {
-  const source: ReactAdapterOptions = isOptionsObject(options) ? options : {};
+  const source: ReactAdapterOptions = isPlainObjectLike(options) ? options : {};
   const {
     pretty,
     text,
@@ -86,7 +80,7 @@ export function resolveSettings(
     pretty: pretty === true,
     // `text` wins whenever it is set at all; plainText only counts as the alias of an unset text.
     text: text !== undefined ? text === true : plainText === true,
-    htmlToTextOptions: isConfigObject(htmlToTextOptions)
+    htmlToTextOptions: isPlainObjectLike(htmlToTextOptions)
       ? { ...htmlToTextOptions }
       : undefined,
     unstableTextConversion: unstableTextConversion === true,

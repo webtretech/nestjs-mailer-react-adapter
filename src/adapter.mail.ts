@@ -1,4 +1,5 @@
 import { REACT_ADAPTER_ERROR_CODES, ReactAdapterError } from "./adapter.errors";
+import { isPlainObjectLike } from "./template.confine";
 
 /** mail.data as the adapter sees it: an object whose keys it does not own stay untyped. */
 export type MailData = Record<string, unknown>;
@@ -11,10 +12,6 @@ export type MailClassification =
       template: string;
       context: Record<string, unknown>;
     };
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 // Names a value's type for error messages. Never includes the value itself.
 function describeType(value: unknown): string {
@@ -39,11 +36,11 @@ function invalidMail(message: string, template?: string): ReactAdapterError {
  * template type, context type. Messages report types only, never values.
  */
 export function classifyMail(mail: unknown): MailClassification {
-  if (!isObject(mail)) {
+  if (!isPlainObjectLike(mail)) {
     throw invalidMail(`mail must be an object; got ${describeType(mail)}`);
   }
   const { data } = mail;
-  if (!isObject(data)) {
+  if (!isPlainObjectLike(data)) {
     throw invalidMail(`mail.data must be an object; got ${describeType(data)}`);
   }
 
@@ -73,7 +70,7 @@ export function classifyMail(mail: unknown): MailClassification {
   if (context === undefined || context === null) {
     return { kind: "render", data, template, context: {} };
   }
-  if (!isObject(context)) {
+  if (!isPlainObjectLike(context)) {
     throw invalidMail(
       `mail.data.context must be an object; got ${describeType(context)}`,
       template

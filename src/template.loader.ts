@@ -15,14 +15,10 @@ export interface LoadedTemplate {
   exportNames: string[];
 }
 
-function isObject(value: unknown): value is object {
-  return typeof value === "object" && value !== null;
-}
-
 // A transpiled module (__esModule marker) or a native module namespace, such as the record require(esm) returns.
 function isModuleRecord(mod: unknown): mod is object {
   return (
-    isObject(mod) &&
+    isRecord(mod) &&
     ("__esModule" in mod ||
       Object.prototype.toString.call(mod) === "[object Module]")
   );
@@ -34,11 +30,11 @@ function readDefault(mod: object): unknown {
 
 function pickDefault(value: unknown): unknown {
   // A default export that is itself an __esModule record (double interop) is unwrapped once.
-  return isObject(value) && "__esModule" in value ? readDefault(value) : value;
+  return isRecord(value) && "__esModule" in value ? readDefault(value) : value;
 }
 
 function namesOf(mod: unknown): string[] {
-  if (!isObject(mod) && typeof mod !== "function") {
+  if (!isRecord(mod) && typeof mod !== "function") {
     return [];
   }
   return Object.keys(mod).filter(
@@ -72,7 +68,7 @@ async function importOrRequire(absolute: string): Promise<LoadedTemplate> {
     }
     const ns: unknown = await import(pathToFileURL(absolute).href);
     return {
-      value: pickDefault(isObject(ns) ? readDefault(ns) : undefined),
+      value: pickDefault(isRecord(ns) ? readDefault(ns) : undefined),
       exportNames: namesOf(ns),
     };
   }
@@ -116,7 +112,7 @@ export function isRenderable(
     return true;
   }
   return (
-    isObject(value) &&
+    isRecord(value) &&
     !isValidElement(value) &&
     "$$typeof" in value &&
     typeof value.$$typeof === "symbol"
@@ -137,7 +133,7 @@ export function describeExport(
   if (isValidElement(value)) {
     return "a React element; export the component itself, not an element such as <Welcome />";
   }
-  if (isObject(value)) {
+  if (isRecord(value)) {
     const keys = Object.keys(value);
     const found = `an object with keys [${keys.join(", ")}]`;
     return keys.includes("default")
