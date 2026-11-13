@@ -144,7 +144,7 @@ Pass options to the `ReactAdapter` constructor.
 | `unsafeAllowOutsideTemplateDir` | `false` | Constructor only, and only the literal `true`. Lets templates load from outside the configured roots. See [Security](#security). |
 | `plainText` | none | Deprecated, use `text`. Same effect. Emits warning code `REACT_ADAPTER_DEP0001` once per process when the key is present. `text` wins when both are set. |
 
-Any other key is passed unchanged to `@react-email/render`'s `render()`.
+Any other key is passed unchanged to `@react-email/render`'s `render()` at runtime, although `ReactAdapterOptions` does not type it.
 
 ## Text part
 
