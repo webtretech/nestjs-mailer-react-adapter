@@ -182,10 +182,22 @@ export function messageTemplateName(name: string): string {
   return name;
 }
 
+// What JSON.stringify leaves raw although a terminal or a log viewer acts on it: DEL and the C1 controls
+// (U+0080 to U+009F, among them U+009B, the 8-bit CSI that xterm and VTE treat as an escape introducer), the
+// invisible direction marks (U+061C, U+200E, U+200F), the bidi embeddings, overrides and isolates (U+202A to
+// U+202E, U+2066 to U+2069), the line and paragraph separators (U+2028, U+2029) and the byte order mark (U+FEFF).
+const UNSAFE_AFTER_JSON =
+  /[\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/g;
+
 // The name quoted for an error message: messageTemplateName, JSON-escaped, so a newline, an ANSI escape or an
 // embedded quote in a relative name appears as a visible escape (\n, \u001b, \") rather than as a raw character
-// in a log. An ordinary name such as welcome reads "welcome", with its own quotes. A backslash shows doubled
-// (sub\welcome reads "sub\\welcome") by design. Internal: not exported from index.
+// in a log. A C1 control, DEL, a bidi override or a line separator, which JSON.stringify leaves raw, is escaped
+// the same way (U+009B shows as \u009b, U+202E as \u202e). An ordinary name such as welcome reads "welcome", with
+// its own quotes. A backslash shows doubled (sub\welcome reads "sub\\welcome") by design. Internal: not exported
+// from index.
 export function quotedTemplateName(name: string): string {
-  return JSON.stringify(messageTemplateName(name));
+  return JSON.stringify(messageTemplateName(name)).replace(
+    UNSAFE_AFTER_JSON,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`
+  );
 }

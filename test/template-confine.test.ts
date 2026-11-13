@@ -9,6 +9,7 @@ import {
   classifyTemplateName,
   isUncNameAllowed,
   messageTemplateName,
+  quotedTemplateName,
 } from "../src/template.confine";
 import type { NameVerdict } from "../src/template.confine";
 import { compileTemplate, expectAdapterError } from "./helpers";
@@ -222,4 +223,95 @@ describe("invalid template names through compile()", () => {
       }
     }
   );
+});
+
+// JSON.stringify escapes U+0000 to U+001F, the quote and the backslash, and leaves the rest raw. These are the
+// raw characters a terminal or a log viewer still acts on, so quotedTemplateName escapes them as well.
+const ESCAPED_AFTER_JSON: Array<{ label: string; code: number }> = [
+  { label: "DEL", code: 0x7f },
+  { label: "the first C1 control", code: 0x80 },
+  { label: "the 8-bit CSI", code: 0x9b },
+  { label: "the last C1 control", code: 0x9f },
+  { label: "the Arabic letter mark", code: 0x61c },
+  { label: "the left-to-right mark", code: 0x200e },
+  { label: "the right-to-left mark", code: 0x200f },
+  { label: "the line separator", code: 0x2028 },
+  { label: "the paragraph separator", code: 0x2029 },
+  { label: "the left-to-right embedding", code: 0x202a },
+  { label: "the right-to-left override", code: 0x202e },
+  { label: "the left-to-right isolate", code: 0x2066 },
+  { label: "the pop directional isolate", code: 0x2069 },
+  { label: "the byte order mark", code: 0xfeff },
+];
+
+// Just outside each escaped range, plus ordinary text in other scripts: shown as given.
+const LEFT_RAW = [
+  0x7e, 0xa0, 0xa1, 0xe9, 0x65e5, 0x200d, 0x2027, 0x202f, 0x2065, 0x206a,
+];
+
+describe("quotedTemplateName", () => {
+  test.each(ESCAPED_AFTER_JSON)(
+    "$label is shown as a backslash-u escape, valid inside a JSON string",
+    ({ code }) => {
+      const raw = String.fromCharCode(code);
+      const hex = code.toString(16).padStart(4, "0");
+      const quoted = quotedTemplateName(`a${raw}b`);
+      expect(quoted).toBe(`"a\\u${hex}b"`);
+      expect(quoted).not.toContain(raw);
+      expect(JSON.parse(quoted)).toBe(`a${raw}b`);
+    }
+  );
+
+  test.each(
+    LEFT_RAW.map((code) => ({
+      code,
+      hex: code.toString(16).toUpperCase().padStart(4, "0"),
+    }))
+  )("U+$hex is shown as given", ({ code }) => {
+    const name = `a${String.fromCharCode(code)}b`;
+    expect(quotedTemplateName(name)).toBe(`"${name}"`);
+  });
+
+  test("a name with none of those characters is exactly what JSON.stringify gives", () => {
+    for (const name of [
+      "welcome",
+      "emails/welcome",
+      "sub\\welcome",
+      "a\nb",
+      "a\u001bb",
+      'a"q"b',
+      "tsc-cjs\0",
+      "café 日本語 😀",
+      "/app/dist/emails/welcome.js",
+    ]) {
+      expect(quotedTemplateName(name)).toBe(
+        JSON.stringify(messageTemplateName(name))
+      );
+    }
+  });
+
+  test("a relative name with several of them reads as escapes only", () => {
+    const name = `x${String.fromCharCode(0x9b)}2J${String.fromCharCode(0x202e)}${String.fromCharCode(0x2066)}${String.fromCharCode(0x2028)}${String.fromCharCode(0x7f)}`;
+    expect(quotedTemplateName(name)).toBe(
+      '"x\\u009b2J\\u202e\\u2066\\u2028\\u007f"'
+    );
+  });
+});
+
+describe("hostile relative names through compile()", () => {
+  test("a C1 control, DEL, a bidi override and a line separator reach the message as escapes, not raw", async () => {
+    const name = `a${String.fromCharCode(0x9b)}2J${String.fromCharCode(0x202e)}b${String.fromCharCode(0x2066)}c${String.fromCharCode(0x2028)}d${String.fromCharCode(0x7f)}`;
+    const error = expectAdapterError(
+      await compileTemplate(name, options()),
+      REACT_ADAPTER_ERROR_CODES.TEMPLATE_NOT_FOUND
+    );
+    expect(error.template).toBe(name);
+    expect(error.message).toContain(
+      '"a\\u009b2J\\u202eb\\u2066c\\u2028d\\u007f"'
+    );
+    expect(error.message).not.toMatch(
+      /[\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/
+    );
+    expect(error.message).not.toContain(FIXTURES);
+  });
 });
