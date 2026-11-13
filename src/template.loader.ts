@@ -42,14 +42,19 @@ function namesOf(mod: unknown): string[] {
   );
 }
 
+// Total: the thrown value is the template's, so a Proxy trap or a getter on it can throw, and that must not replace it.
 function isRequireEsmError(error: unknown): boolean {
-  if (typeof error !== "object" || error === null || !("code" in error)) {
+  try {
+    if (typeof error !== "object" || error === null || !("code" in error)) {
+      return false;
+    }
+    return (
+      error.code === "ERR_REQUIRE_ESM" ||
+      error.code === "ERR_REQUIRE_ASYNC_MODULE"
+    );
+  } catch {
     return false;
   }
-  return (
-    error.code === "ERR_REQUIRE_ESM" ||
-    error.code === "ERR_REQUIRE_ASYNC_MODULE"
-  );
 }
 
 async function importOrRequire(absolute: string): Promise<LoadedTemplate> {
@@ -90,6 +95,29 @@ function isSyntaxErrorNamingAPath(error: unknown): boolean {
   );
 }
 
+// A cause with a string code shows only the code (Node's own messages embed absolute paths and require stacks).
+// A SyntaxError whose message names an absolute path, which is how Node reports a malformed .json dependency
+// (no code, the file path in front of the parser's text), shows only its name. Any other cause is quoted.
+// Exception to the no-path rule: text thrown by the template or its dependencies is quoted as given and may carry
+// an absolute path (for example `new Error("bad config in " + __dirname)`); a coded error and a SyntaxError that
+// names a path never do.
+// Total: the cause is whatever the template threw, so reading `code`, `name` or `message`, or converting it to a
+// string, can throw (a null-prototype object, a throwing getter, a revoked Proxy). Then a fixed text stands in.
+function describeCause(error: unknown): string {
+  try {
+    const code = isRecord(error) ? error["code"] : undefined;
+    if (typeof code === "string") {
+      return `the error code is ${code}; the underlying error is in cause`;
+    }
+    if (isSyntaxErrorNamingAPath(error)) {
+      return "a SyntaxError; the underlying error is in cause";
+    }
+    return error instanceof Error ? String(error.message) : String(error);
+  } catch {
+    return "a value that cannot be described; the underlying error is in cause";
+  }
+}
+
 // Nothing is cached here: Node does not cache a CommonJS module that threw while loading, so the next send retries it.
 // A native ESM module that failed to evaluate stays failed until the process restarts; no retry is added.
 export async function loadTemplate(
@@ -101,25 +129,10 @@ export async function loadTemplate(
   try {
     return await importOrRequire(absolute);
   } catch (error) {
-    // A cause with a string code shows only the code (Node's own messages embed absolute paths and
-    // require stacks). A SyntaxError whose message names an absolute path, which is how Node reports a malformed
-    // .json dependency (no code, the file path in front of the parser's text), shows only its name. Any other
-    // cause is quoted. The whole cause stays on error.cause.
-    // Exception to the no-path rule: text thrown by the template or its dependencies is quoted as given and
-    // may carry an absolute path (for example `new Error("bad config in " + __dirname)`); a coded error and a
-    // SyntaxError that names a path never do.
-    const code = isRecord(error) ? error["code"] : undefined;
-    const reason =
-      typeof code === "string"
-        ? `the error code is ${code}; the underlying error is in cause`
-        : isSyntaxErrorNamingAPath(error)
-          ? "a SyntaxError; the underlying error is in cause"
-          : error instanceof Error
-            ? error.message
-            : String(error);
+    // The whole cause stays on error.cause; see describeCause for what the message shows of it.
     throw new ReactAdapterError(
       REACT_ADAPTER_ERROR_CODES.TEMPLATE_LOAD_FAILED,
-      `Template ${quotedTemplateName(template)} failed to load: ${reason}. A CommonJS template is loaded again on the next send; a native ESM template that failed to load stays failed until the application restarts.`,
+      `Template ${quotedTemplateName(template)} failed to load: ${describeCause(error)}. A CommonJS template is loaded again on the next send; a native ESM template that failed to load stays failed until the application restarts.`,
       { template, path: absolute, cause: error }
     );
   }
@@ -132,16 +145,33 @@ export function isRenderable(
   if (typeof value === "function") {
     return true;
   }
-  return (
-    isRecord(value) &&
-    !isValidElement(value) &&
-    "$$typeof" in value &&
-    typeof value.$$typeof === "symbol"
-  );
+  // Total: a Proxy default export whose traps throw is not renderable, and describeExport then names it.
+  try {
+    return (
+      isRecord(value) &&
+      !isValidElement(value) &&
+      "$$typeof" in value &&
+      typeof value.$$typeof === "symbol"
+    );
+  } catch {
+    return false;
+  }
 }
 
-// Says what a rejected default export was, for the INVALID_EXPORT message.
+// Says what a rejected default export was, for the INVALID_EXPORT message. Total: the value is the template's,
+// and listing the keys of a Proxy can throw.
 export function describeExport(
+  value: unknown,
+  exportNames: readonly string[]
+): string {
+  try {
+    return describeExportValue(value, exportNames);
+  } catch {
+    return "a value that cannot be described";
+  }
+}
+
+function describeExportValue(
   value: unknown,
   exportNames: readonly string[]
 ): string {

@@ -235,6 +235,78 @@ module.exports = function Template() { return "never"; };
     expect(error.cause).toBe("plain string failure");
   });
 
+  // The thrown value is the template's, so describing it must not throw: each case below used to replace the
+  // typed error with a bare TypeError (or kept a secondary error as the cause instead of the thrown value).
+  test.each([
+    {
+      name: "a null-prototype object",
+      source: "throw Object.create(null);",
+      check: (cause: unknown) => {
+        expect(Object.getPrototypeOf(cause)).toBeNull();
+      },
+    },
+    {
+      name: "an error whose message getter throws",
+      source: `const failure = new Error("x");
+Object.defineProperty(failure, "message", { get() { throw new Error("getter"); } });
+throw failure;`,
+      check: (cause: unknown) => {
+        expect(cause).toBeInstanceOf(Error);
+        expect(() => (cause as Error).message).toThrow("getter");
+      },
+    },
+    {
+      name: "an object whose code getter throws",
+      source: `throw Object.defineProperty({}, "code", { get() { throw new Error("getter"); } });`,
+      check: (cause: unknown) => {
+        expect(() => (cause as { code: unknown }).code).toThrow("getter");
+      },
+    },
+    {
+      name: "a revoked Proxy",
+      source: `const p = Proxy.revocable({}, {});
+p.revoke();
+throw p.proxy;`,
+      check: (cause: unknown) => {
+        expect(() => "code" in (cause as object)).toThrow(TypeError);
+      },
+    },
+  ])(
+    "$name thrown at load fails as TEMPLATE_LOAD_FAILED with the thrown value as cause",
+    async ({ name, source, check }) => {
+      const file = `throws-hostile-${name.replaceAll(" ", "-")}`;
+      await write(`${file}.js`, `${source}\n`);
+      const outcome = await send(file);
+      const error = expectAdapterError(
+        outcome,
+        "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED"
+      );
+      expect(error.template).toBe(file);
+      expect(error.path).toBe(path.join(dir, `${file}.js`));
+      expect(error.message).toContain("a value that cannot be described");
+      expect(error.message).not.toContain(dir);
+      expect(Object.hasOwn(error, "cause")).toBe(true);
+      check(error.cause);
+      expect(outcome.html).toBeUndefined();
+    }
+  );
+
+  test("an error whose message is a symbol fails as TEMPLATE_LOAD_FAILED and shows the symbol", async () => {
+    await write(
+      "throws-symbol-message.js",
+      `const failure = new Error("x");
+Object.defineProperty(failure, "message", { value: Symbol("s") });
+throw failure;
+`
+    );
+    const error = expectAdapterError(
+      await send("throws-symbol-message"),
+      "ERR_REACT_ADAPTER_TEMPLATE_LOAD_FAILED"
+    );
+    expect(error.message).toContain("failed to load: Symbol(s).");
+    expect(error.cause).toBeInstanceOf(Error);
+  });
+
   // The one place a message can carry an absolute path: the text of a plain Error thrown by the template or its
   // dependencies is quoted as given, so a path inside that text is quoted too. A coded error and a SyntaxError
   // that names a path (a malformed .json dependency) never reach it; see the tests below.
@@ -341,6 +413,37 @@ describe("template-loader: a SyntaxError that names a path", () => {
     expect(error.message).toContain("unexpected token in the template data");
     expect(error.message).not.toContain("the underlying error is in cause");
   });
+});
+
+describe("template-loader: a default export that cannot be inspected", () => {
+  // The default export is the template's: a Proxy whose traps throw must still end as INVALID_EXPORT.
+  test.each([
+    {
+      name: "ownKeys",
+      // The loader lists the keys once for exportNames, so only the second listing throws.
+      traps: `(() => { let calls = 0; return { ownKeys(target) { calls += 1; if (calls > 1) { throw new Error("trap"); } return Reflect.ownKeys(target); } }; })()`,
+    },
+    {
+      name: "get",
+      traps: `{ get(target, key) { if (key === "$$typeof") { throw new Error("trap"); } return undefined; } }`,
+    },
+  ])(
+    "a Proxy default export whose $name trap throws fails as INVALID_EXPORT",
+    async ({ name, traps }) => {
+      const file = `proxy-export-${name}`;
+      await write(`${file}.js`, `module.exports = new Proxy({}, ${traps});\n`);
+      const error = expectAdapterError(
+        await send(file),
+        "ERR_REACT_ADAPTER_INVALID_EXPORT"
+      );
+      expect(error.template).toBe(file);
+      expect(error.path).toBe(path.join(dir, `${file}.js`));
+      expect(error.message).toContain(
+        "found a value that cannot be described."
+      );
+      expect(error.cause).toBeUndefined();
+    }
+  );
 });
 
 describe("template-loader: render failures", () => {
