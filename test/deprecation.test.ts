@@ -72,12 +72,13 @@ describe("plainText as a deprecated alias for text", () => {
   test("plainText: false warns too, whenever the key holds a boolean", async () => {
     const ReactAdapter = await freshAdapter();
     new ReactAdapter({ plainText: false });
-    new ReactAdapter({ plainText: true });
     expect(emitWarning).toHaveBeenCalledTimes(1);
     expect(emitWarning).toHaveBeenCalledWith(
       expect.any(String),
       WARNING_OPTIONS
     );
+    new ReactAdapter({ plainText: true });
+    expect(emitWarning).toHaveBeenCalledTimes(1);
   });
 
   test.each([
