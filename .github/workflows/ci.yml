@@ -1,0 +1,175 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint, typecheck, build, test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run verify:build
+      - run: npm run verify:types
+      - run: npm test
+
+  pack:
+    name: Pack and lint the tarball
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Pack the tarball
+        run: mkdir -p "$RUNNER_TEMP/pack" && npm pack --pack-destination "$RUNNER_TEMP/pack"
+      - name: Lint the tarball
+        run: node scripts/verify-package.mjs --tarball "$RUNNER_TEMP"/pack/*.tgz
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tarball
+          path: ${{ runner.temp }}/pack/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  contract:
+    name: Contract (mailer ${{ matrix.name }})
+    needs: pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "2.0.1 (floor)"
+            mailer: "2.0.1"
+            nodemailer: "6.4.6"
+          - name: "2 (latest)"
+            mailer: "2"
+          - name: "3"
+            mailer: "3"
+          - name: "4"
+            mailer: "4"
+          - name: "4 + React 18"
+            mailer: "4"
+            react: "18"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: tarball
+          path: ${{ runner.temp }}/tarball
+      - name: Run the contract leg
+        env:
+          MAILER: ${{ matrix.mailer }}
+          NODEMAILER: ${{ matrix.nodemailer }}
+          REACT: ${{ matrix.react }}
+        run: node scripts/contract.mjs "$MAILER" ${NODEMAILER:+--nodemailer "$NODEMAILER"} ${REACT:+--react "$REACT"} --tarball "$RUNNER_TEMP"/tarball/*.tgz
+
+  smoke:
+    name: Smoke (Node ${{ matrix.node }})
+    needs: pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["20.19.0", "22", "24"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          check-latest: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: tarball
+          path: ${{ runner.temp }}/tarball
+      - name: Run the smoke suite
+        env:
+          EXPECT_NODE: ${{ matrix.node }}
+        run: node scripts/smoke.mjs --tarball "$RUNNER_TEMP"/tarball/*.tgz --expect-node "$EXPECT_NODE"
+
+  examples:
+    name: Example (${{ matrix.example }})
+    needs: pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        example: [nestjs-example, nestjs-with-swc-example]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: tarball
+          path: ${{ runner.temp }}/tarball
+      - name: Build the example and send a mail
+        env:
+          EXAMPLE: ${{ matrix.example }}
+        run: node scripts/examples.mjs "$EXAMPLE" --tarball "$RUNNER_TEMP"/tarball/*.tgz
+
+  workflows:
+    name: Lint workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install actionlint 1.7.12
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl -sSfL -o "$archive" "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+      - name: Lint every workflow
+        run: |
+          "$RUNNER_TEMP/actionlint" -color

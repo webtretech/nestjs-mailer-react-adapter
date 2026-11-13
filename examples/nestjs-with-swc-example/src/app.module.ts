@@ -18,7 +18,7 @@ import mailerConfig from './config/mailer.config';
       useFactory: (mailerConf: ConfigType<typeof mailerConfig>) => ({
         ...mailerConf,
         template: {
-          adapter: new ReactAdapter(),
+          adapter: new ReactAdapter({ text: true }),
           dir: __dirname + '/templates',
         },
       }),

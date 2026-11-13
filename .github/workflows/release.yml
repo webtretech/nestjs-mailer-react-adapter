@@ -1,0 +1,270 @@
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to take the release notes from and comment on (recovery when the pull_request run did not happen)"
+        required: false
+        type: string
+        default: ""
+      dry_run:
+        description: "Run every gate and npm publish --dry-run; stage, tag, release and comment nothing"
+        required: false
+        type: boolean
+        default: false
+
+# The build job runs the project's code (dependency install scripts, lint, tests) and gets read access
+# only. The release job gets the write and OIDC permissions but runs no project script: it only
+# publishes the tarball the build job packed.
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and verify
+    # Runs for a merged release* PR into main from this repository, or a manual dispatch.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged &&
+      startsWith(github.event.pull_request.head.ref, 'release') &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      package: ${{ steps.release.outputs.package }}
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      dist_tag: ${{ steps.release.outputs.dist_tag }}
+      tag_exists: ${{ steps.release.outputs.tag_exists }}
+      sha: ${{ steps.release.outputs.sha }}
+      tarball: ${{ steps.pack.outputs.tarball }}
+    steps:
+      - name: Require main for a real release
+        if: github.event_name == 'workflow_dispatch' && !inputs.dry_run && github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::A real release must be dispatched from main (use dry_run to try another branch)."
+          exit 1
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          # The commit the merge put on main; empty on a dispatch, which uses the dispatched ref.
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run verify:build
+      - run: npm run verify:types
+      - run: npm test
+
+      - name: Pack the tarball
+        id: pack
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pack"
+          npm pack --pack-destination "$RUNNER_TEMP/pack"
+          set -- "$RUNNER_TEMP"/pack/*.tgz
+          if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
+            echo "::error::Expected exactly one tarball in $RUNNER_TEMP/pack"
+            exit 1
+          fi
+          echo "tarball=$(basename "$1")" >> "$GITHUB_OUTPUT"
+
+      - name: Lint the tarball
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: node scripts/verify-package.mjs --tarball "$RUNNER_TEMP/pack/$TARBALL"
+
+      - name: Version, dist-tag and existing release
+        id: release
+        run: |
+          set -euo pipefail
+          package=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          case "$version" in
+            *-*)
+              prerelease=${version#*-}
+              dist_tag=${prerelease%%.*}
+              ;;
+            *)
+              dist_tag=latest
+              ;;
+          esac
+          if ! printf '%s' "$dist_tag" | grep -Eq '^[A-Za-z][A-Za-z0-9-]*$'; then
+            echo "::error::Cannot derive a dist-tag from version $version"
+            exit 1
+          fi
+          tag="v$version"
+          if [ -n "$(git tag -l "$tag")" ]; then
+            tag_exists=true
+            echo "::notice::$tag already exists; skipping stage, release and comment"
+          else
+            tag_exists=false
+          fi
+          # One lookup of every published version: a failed lookup fails the job, a missing version is not an error.
+          published=$(npm view "$package" versions --json)
+          if printf '%s' "$published" | VERSION="$version" node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.exit([].concat(JSON.parse(s)).includes(process.env.VERSION)?0:1))'; then
+            on_npm=true
+          else
+            on_npm=false
+          fi
+          if [ "$tag_exists" = false ] && [ "$on_npm" = true ]; then
+            echo "::error::$package@$version is on npm but $tag does not exist; fix the tag by hand before releasing"
+            exit 1
+          fi
+          {
+            echo "package=$package"
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "dist_tag=$dist_tag"
+            echo "tag_exists=$tag_exists"
+            echo "sha=$(git rev-parse HEAD)"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-tarball
+          path: ${{ runner.temp }}/pack/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Release
+    # Skipped whenever the build job is skipped or fails.
+    needs: build
+    runs-on: ubuntu-latest
+    environment: Release
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: write
+    steps:
+      # The commit the build job built, not the ref's current tip, so the release target cannot drift.
+      # This job runs no project script: nothing here installs dependencies or calls npm run.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.build.outputs.sha }}
+
+      # `registry-url` is intentionally omitted. When set, setup-node writes ~/.npmrc with
+      # `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}`. Under trusted publishing there is no
+      # NPM_TOKEN, so that substitutes an empty token and npm answers 404 instead of starting the OIDC
+      # exchange. Without it, npm uses its default registry and handles the exchange itself.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Install the pinned npm
+        # Trusted publishing needs npm 11.5.1 or later; the npm bundled with Node 22.23.4 is 10.9.9.
+        run: |
+          set -euo pipefail
+          npm install -g npm@11.21.2
+          npm --version
+          help=$(npm stage --help 2>&1 || true)
+          case "$help" in
+            *"npm stage publish"*) ;;
+            *)
+              echo "::error::This npm has no npm stage publish"
+              exit 1
+              ;;
+          esac
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-tarball
+          path: ${{ runner.temp }}/tarball
+
+      # Publishing a tarball path runs no lifecycle script.
+      - name: Publish dry run
+        if: inputs.dry_run
+        env:
+          DIST_TAG: ${{ needs.build.outputs.dist_tag }}
+          TARBALL: ${{ needs.build.outputs.tarball }}
+        run: npm publish --dry-run --access public --tag "$DIST_TAG" "$RUNNER_TEMP/tarball/$TARBALL"
+
+      # Written before staging so a bad pr_number fails before anything is staged.
+      - name: Write the release notes
+        if: ${{ !inputs.dry_run && needs.build.outputs.tag_exists == 'false' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER_INPUT: ${{ inputs.pr_number }}
+        run: |
+          set -euo pipefail
+          if [ -n "$PR_NUMBER_INPUT" ]; then
+            gh pr view "$PR_NUMBER_INPUT" --json body --jq .body > "$RUNNER_TEMP/notes.md"
+          else
+            printf '%s' "$PR_BODY" > "$RUNNER_TEMP/notes.md"
+          fi
+
+      # Staging comes before tagging so a failed stage leaves nothing to clean up.
+      # A staged version reserves its version number (`npm help stage`), so a re-run after "staged, but
+      # the tag or release failed" fails here instead of staging twice. To recover, create the tag and
+      # the release by hand (`gh release create v<version> --target <sha>`); a re-run then takes the
+      # tag-exists skip. If the stage itself is unwanted, run `npm stage reject` on it.
+      - name: Stage the release on npm
+        if: ${{ !inputs.dry_run && needs.build.outputs.tag_exists == 'false' }}
+        env:
+          NPM_CONFIG_PROVENANCE: true
+          DIST_TAG: ${{ needs.build.outputs.dist_tag }}
+          TARBALL: ${{ needs.build.outputs.tarball }}
+        run: npm stage publish --access public --tag "$DIST_TAG" "$RUNNER_TEMP/tarball/$TARBALL"
+
+      # gh release create makes the tag server-side, so checkout keeps persist-credentials: false.
+      - name: Create the tag and the GitHub release
+        if: ${{ !inputs.dry_run && needs.build.outputs.tag_exists == 'false' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.tag }}
+          SHA: ${{ needs.build.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if [ -s "$RUNNER_TEMP/notes.md" ]; then
+            gh release create "$TAG" --target "$SHA" --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
+          else
+            gh release create "$TAG" --target "$SHA" --title "$TAG" --generate-notes
+          fi
+
+      - name: Comment on the pull request
+        if: ${{ !inputs.dry_run && needs.build.outputs.tag_exists == 'false' && (inputs.pr_number != '' || github.event_name == 'pull_request') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
+          PACKAGE: ${{ needs.build.outputs.package }}
+          VERSION: ${{ needs.build.outputs.version }}
+          TAG: ${{ needs.build.outputs.tag }}
+          DIST_TAG: ${{ needs.build.outputs.dist_tag }}
+        run: |
+          set -euo pipefail
+          # The backticks below are Markdown, not command substitution.
+          # shellcheck disable=SC2016
+          {
+            printf 'Version %s of %s is staged on npm with dist-tag `%s` and tagged [%s](https://github.com/%s/releases/tag/%s). It is not live until a maintainer approves it.\n\n' "$VERSION" "$PACKAGE" "$DIST_TAG" "$TAG" "$GITHUB_REPOSITORY" "$TAG"
+            printf '1. Find the stage id: `npm stage list %s`\n' "$PACKAGE"
+            printf '2. Inspect it: `npm stage view STAGE_ID` or `npm stage download STAGE_ID`\n'
+            printf '3. Publish it (2FA): `npm stage approve STAGE_ID`\n\n'
+            printf 'To discard it instead, run `npm stage reject STAGE_ID`, then delete the %s release and tag before releasing this version again.\n' "$TAG"
+          } > "$RUNNER_TEMP/comment.md"
+          gh pr comment "$PR_NUMBER" --body-file "$RUNNER_TEMP/comment.md"
