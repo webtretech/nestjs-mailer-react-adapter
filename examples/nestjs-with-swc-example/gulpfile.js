@@ -2,6 +2,7 @@
 
 const gulp = require('gulp');
 const ts = require('gulp-typescript');
+const { pipeline } = require('node:stream');
 
 const paths = {
   src: 'src/templates/**/*.tsx',
@@ -9,10 +10,10 @@ const paths = {
 };
 
 exports.default = function (cb) {
-  gulp
-    .src(paths.src, { sourcemaps: true })
-    .pipe(ts({ noImplicitAny: true, jsx: 'react-jsx' }))
-    .pipe(gulp.dest(paths.dest));
-
-  cb();
+  pipeline(
+    gulp.src(paths.src, { sourcemaps: true }),
+    ts({ noImplicitAny: true, jsx: 'react-jsx' }),
+    gulp.dest(paths.dest),
+    cb,
+  );
 };
